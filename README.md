@@ -127,4 +127,4 @@ str(dt2)
 
 ## License
 
-Add a license declaration (MIT is common for public R utilities), and ensure it matches `DESCRIPTION` and repository licensing.
+License: MIT + file LICENSE
