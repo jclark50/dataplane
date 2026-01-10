@@ -14,14 +14,12 @@ klimo_open_dataset_with_meta(path, ref_file = NULL, ...)
 \item{...}{Passed to arrow::open_dataset}
 }
 \value{
-list(ds=\if{html}{\out{<Arrow Dataset>}}, meta=\if{html}{\out{<metadata bundle>}}, ref_file=\if{html}{\out{<path>}})
+list(ds=<Arrow Dataset>, meta=<metadata bundle>, ref_file=<path>)
 }
 \description{
 IMPORTANT: Arrow datasets do not reliably carry per-file schema metadata in a way that
 supports your Klimo spec/audit workflow. The practical pattern is:
-\itemize{
-\item choose ONE reference file (e.g., first in directory)
-\item read its metadata as the dataset-level metadata
-\item optionally validate other files share the same fingerprint (if you store one)
-}
+  - choose ONE reference file (e.g., first in directory)
+  - read its metadata as the dataset-level metadata
+  - optionally validate other files share the same fingerprint (if you store one)
 }

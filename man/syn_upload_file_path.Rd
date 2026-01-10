@@ -2,22 +2,8 @@
 % Please edit documentation in R/klimo_synapser.R
 \name{syn_upload_file_path}
 \alias{syn_upload_file_path}
-\title{Upload a local file to a remote Synapse folder specified by path}
+\title{Upload a file to a remote folder path (relative to a base container)}
 \usage{
-syn_upload_file_path(
-  local_path,
-  base_id,
-  remote_folder_path,
-  name = NULL,
-  contentType = NULL,
-  overwrite = FALSE,
-  description = NULL,
-  annotations = NULL,
-  token = NULL,
-  verbose = FALSE,
-  dry_run = FALSE
-)
-
 syn_upload_file_path(
   local_path,
   base_id,
@@ -33,25 +19,46 @@ syn_upload_file_path(
 )
 }
 \arguments{
-\item{local_path}{Local file path to upload.}
+\item{local_path}{Local file path.}
 
-\item{base_id}{Synapse Project/Folder ID used as the root for remote_folder_path.}
+\item{base_id}{Base container synId (Project or Folder).}
 
-\item{remote_folder_path}{Remote folder path like "zz_smoketests/synapse_rw/test2".}
+\item{remote_folder_path}{Remote folder path relative to `base_id`, e.g. `"a/b/c"`.}
 
-\item{name}{Optional remote FileEntity name.}
+\item{name}{Optional FileEntity name override.}
 
-\item{...}{Passed through to syn_upload_file() (and syn_ensure_folder_path via token/verbose/dry_run).}
+\item{contentType}{Optional MIME type override.}
+
+\item{overwrite}{Logical; overwrite existing FileEntity with same name.}
+
+\item{description}{Optional description.}
+
+\item{annotations}{Optional named list for annotations2.}
+
+\item{token}{Optional token (PAT).}
+
+\item{verbose}{Logical.}
+
+\item{dry_run}{Logical.}
 }
 \value{
-Whatever syn_upload_file() returns.
-
-Whatever syn_upload_file() returns.
+`"syn_upload_result"` (see [syn_upload_file()]).
 }
 \description{
-This is a convenience wrapper:
-\enumerate{
-\item ensures folder path exists under a base project/folder
-\item uploads the local file into the resolved folder
+Convenience wrapper:
+- Ensures `remote_folder_path` exists under `base_id` (creating folders as needed)
+- Uploads `local_path` to the resulting folder via [syn_upload_file()]
+}
+\examples{
+\dontrun{
+res <- syn_upload_file_path(
+  local_path = "C:/data/example.csv",
+  base_id = "synProjectId",
+  remote_folder_path = "zz_smoketests/synapse_rw/test2",
+  overwrite = TRUE,
+  annotations = list(stage = "smoke", kind = "csv"),
+  verbose = TRUE
+)
+res$file_entity_id
 }
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/klimo_synapser.R
 \name{syn_download_file_path}
 \alias{syn_download_file_path}
-\title{token <- Sys.getenv("SYNAPSE_PAT")}
+\title{Download a file using a remote path (relative to a base container)}
 \usage{
 syn_download_file_path(
   base_id,
@@ -15,43 +15,34 @@ syn_download_file_path(
 )
 }
 \arguments{
-\item{base_id}{Synapse Project/Folder ID used as root.}
+\item{base_id}{Base container synId.}
 
-\item{remote_file_path}{Remote path including the file name, e.g. "zz_smoketests/synapse_rw/test2/test.csv".}
+\item{remote_file_path}{Remote file path like `"a/b/c/file.csv"`.}
 
 \item{dest_path}{Local destination path.}
 
-\item{overwrite}{Logical.}
+\item{overwrite}{Logical; overwrite existing local file.}
 
-\item{token}{Synapse PAT.}
+\item{token}{Optional token (PAT).}
 
 \item{verbose}{Logical.}
 
 \item{dry_run}{Logical.}
 }
 \value{
-The downloaded local path (from syn_download_file()).
+`dest_path`.
 }
 \description{
-up <- syn_upload_file_path(
-local_path = "C:/tmp/test.csv",
-base_id = "syn64728425",
-remote_folder_path = "zz_smoketests/synapse_rw/test2",
-token = token,
-overwrite = TRUE,
-description = "Uploaded via path wrapper",
-annotations = list(stage = "smoke", kind = "csv"),
-verbose = TRUE
-)
+Download a file using a remote path (relative to a base container)
 }
-\details{
-#' Download a Synapse file specified by a remote path
-
-Remote path format: "folderA/folderB/file.csv" relative to base_id.
-This wrapper:
-\enumerate{
-\item resolves the folder path (no create)
-\item finds the FileEntity by name
-\item downloads via syn_download_file(entity_id, ...)
+\examples{
+\dontrun{
+syn_download_file_path(
+  base_id = "synProjectId",
+  remote_file_path = "zz_smoketests/synapse_rw/test2/New Text Document.txt",
+  dest_path = "C:/tmp/downloads/test.txt",
+  overwrite = TRUE,
+  verbose = TRUE
+)
 }
 }

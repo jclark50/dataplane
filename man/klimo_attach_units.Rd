@@ -2,7 +2,7 @@
 % Please edit documentation in R/klimo_read_parquet.R
 \name{klimo_attach_units}
 \alias{klimo_attach_units}
-\title{Attach declared units to columns (sets attr(x[\link{col}], "unit"))}
+\title{Attach declared units to columns (sets attr(x[[col]], "unit"))}
 \usage{
 klimo_attach_units(
   dt,

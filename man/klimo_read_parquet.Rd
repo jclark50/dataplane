@@ -18,11 +18,9 @@ klimo_read_parquet(
 \item{path}{Parquet path.}
 
 \item{metadata}{One of:
-\itemize{
-\item "ignore": do not parse metadata
-\item "return": parse and return metadata but do not change data
-\item "apply": parse and apply selected behaviors (decode scaled, attach units)
-}}
+- "ignore": do not parse metadata
+- "return": parse and return metadata but do not change data
+- "apply": parse and apply selected behaviors (decode scaled, attach units)}
 
 \item{decode_scaled}{If TRUE and metadata is available, attempt to decode scaled columns.}
 
