@@ -134,9 +134,27 @@
 #' @param version version string stored in metadata.
 #' @return klimo_spec object
 #' @keywords internal
-.klimo_spec_new <- function(spec_dt, declared_system = c("metric", "imperial"), version = "1") {
+#' @keywords internal
+.klimo_spec_new <- function(
+    spec_dt,
+    declared_system = c("metric", "imperial", "custom"),
+    version = "1",
+    system = NULL,      # legacy alias
+    ...
+) {
   .klimo_require("data.table")
-  declared_system <- match.arg(declared_system)
+  
+  # ---- handle legacy arg name: system= ----
+  if (!is.null(system) && is.null(declared_system)) {
+    declared_system <- system
+  }
+  if (!is.null(system) && !missing(declared_system)) {
+    # If both provided, prefer declared_system but warn once (optional)
+    # .klimo_warn(".klimo_spec_new(): both declared_system= and system= provided; using declared_system.")
+  }
+  
+  # match.arg, but also allow NULL passed through
+  declared_system <- match.arg(as.character(declared_system), c("metric", "imperial", "custom"))
   
   spec_dt <- .klimo_dt(spec_dt)
   if (!("column" %in% names(spec_dt))) .klimo_stop("spec_dt must contain a 'column' field.")
@@ -145,10 +163,10 @@
   spec_dt[, column_norm := .klimo_norm_name(column)]
   
   # Ensure expected fields exist
-  if (!("concept" %in% names(spec_dt)))          spec_dt[, concept := NA_character_]
-  if (!("metric_units" %in% names(spec_dt)))     spec_dt[, metric_units := NA_character_]
-  if (!("imperial_units" %in% names(spec_dt)))   spec_dt[, imperial_units := NA_character_]
-  if (!("declared_units" %in% names(spec_dt)))   spec_dt[, declared_units := NA_character_]
+  if (!("concept" %in% names(spec_dt)))            spec_dt[, concept := NA_character_]
+  if (!("metric_units" %in% names(spec_dt)))       spec_dt[, metric_units := NA_character_]
+  if (!("imperial_units" %in% names(spec_dt)))     spec_dt[, imperial_units := NA_character_]
+  if (!("declared_units" %in% names(spec_dt)))     spec_dt[, declared_units := NA_character_]
   
   # Backward compatibility: suggested_scale -> writer_scale
   if (!("writer_scale" %in% names(spec_dt))) {
@@ -160,9 +178,9 @@
   }
   
   # Encoding (already-scaled storage)
-  if (!("encoding" %in% names(spec_dt)))           spec_dt[, encoding := "none"]
-  if (!("encoding_scale" %in% names(spec_dt)))     spec_dt[, encoding_scale := as.numeric(NA)]
-  if (!("encoding_base_units" %in% names(spec_dt)))spec_dt[, encoding_base_units := NA_character_]
+  if (!("encoding" %in% names(spec_dt)))             spec_dt[, encoding := "none"]
+  if (!("encoding_scale" %in% names(spec_dt)))       spec_dt[, encoding_scale := as.numeric(NA)]
+  if (!("encoding_base_units" %in% names(spec_dt)))  spec_dt[, encoding_base_units := NA_character_]
   
   # Types
   spec_dt[, concept := as.character(concept)]
@@ -178,7 +196,10 @@
   spec_dt[is.na(encoding) | !nzchar(encoding), encoding := "none"]
   bad_enc <- setdiff(unique(spec_dt$encoding), c("none", "scaled_int"))
   if (length(bad_enc)) {
-    .klimo_stop("Unsupported encoding value(s): %s. Allowed: 'none', 'scaled_int'.", paste(bad_enc, collapse = ", "))
+    .klimo_stop(
+      "Unsupported encoding value(s): %s. Allowed: 'none', 'scaled_int'.",
+      paste(bad_enc, collapse = ", ")
+    )
   }
   
   # If encoding is scaled_int, enforce encoding_scale is present and finite/non-zero
@@ -186,17 +207,18 @@
   if (length(idx_enc)) {
     bad <- idx_enc[!is.finite(spec_dt$encoding_scale[idx_enc]) | spec_dt$encoding_scale[idx_enc] == 0]
     if (length(bad)) {
-      .klimo_stop("Spec has encoding='scaled_int' but missing/invalid encoding_scale for column(s): %s",
-                  paste(spec_dt$column[bad], collapse = ", "))
+      .klimo_stop(
+        "Spec has encoding='scaled_int' but missing/invalid encoding_scale for column(s): %s",
+        paste(spec_dt$column[bad], collapse = ", ")
+      )
     }
   }
   
-  # If declared_units missing, it can be derived later from metric/imperial based on declared_system.
   out <- list(spec_dt = spec_dt, declared_system = declared_system, version = as.character(version))
   class(out) <- "klimo_spec"
   out
 }
- 
+
 
 #' @export
 print.klimo_spec <- function(x, ...) {
