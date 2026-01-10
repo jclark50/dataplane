@@ -2,9 +2,18 @@ Package: dataplane
 Title: Data Architecture and Processing Helpers
 Version: 0.0.0.9000
 Authors@R: 
-    person("Jordan", "Clark", email = "you@domain.com", role = c("aut", "cre"))
+    person("Jordan", "Clark", email = "jordanjclark50@gmail.com", role = c("aut", "cre"))
 Description: Tools for structuring, validating, and transforming datasets with a focus on repeatable pipelines and clear metadata.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
+URL: https://github.com/jclark50/dataplane
+BugReports: https://github.com/jclark50/dataplane/issues
+Imports: 
+    arrow,
+    data.table,
+    digest,
+    dplyr,
+    httr2,
+    jsonlite
