@@ -1,15 +1,10 @@
-Package: data.plane
-Title: Opinionated Data Architecture and Processing Helpers
-Description: Tools for structuring, validating, and transforming large datasets
-    with a focus on repeatable pipelines and clear metadata.
-Authors@R: person("Jordan", "Clark", email = "YOUR_EMAIL", role = c("aut", "cre"))
+Package: dataplane
+Title: Data Architecture and Processing Helpers
+Version: 0.0.0.9000
+Authors@R: 
+    person("Jordan", "Clark", email = "you@domain.com", role = c("aut", "cre"))
+Description: Tools for structuring, validating, and transforming datasets with a focus on repeatable pipelines and clear metadata.
 License: MIT + file LICENSE
 Encoding: UTF-8
-LazyData: true
+Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
-Version: 0.0.0.9000
-Suggests: 
-    testthat (>= 3.0.0)
-Config/testthat/edition: 3
-URL: https://github.com/jclark50/data.plane
-BugReports: https://github.com/jclark50/data.plane/issues

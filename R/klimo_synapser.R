@@ -10,6 +10,12 @@ suppressPackageStartupMessages({
 # =========================
 # Internal helpers
 # =========================
+# ---- base URL ----
+# ---- small helpers ----
+.syn_is_scalar_chr <- function(x) is.character(x) && length(x) == 1L && !is.na(x)
+.syn_is_id <- function(x) .syn_is_scalar_chr(x) && grepl("^syn[0-9]+$", x)
+
+
 
 .syn_base_url <- function() "https://repo-prod.prod.sagebase.org"
 
@@ -646,60 +652,60 @@ syn_upload_file <- function(local_path,
 
 
 
-
-# source("synapse_rest_backend.R")
-
-token <- Sys.getenv("SYNAPSE_PAT")
-project_id <- "syn64728425"
-
-folder_id <- syn_ensure_folder_path(
-  project_id,
-  "zz_smoketests/synapse_rw",
-  token = token,
-  verbose = TRUE
-)
-
-
-# folder_id <- 'syn72246746'
-# syn72246747
-
-
-tmp <- tempfile(fileext = ".csv")
-write.csv(data.frame(x=1:5, y=letters[1:5]), tmp, row.names = FALSE)
-
-up <- syn_upload_file(
-  tmp,
-  parent_id = folder_id,
-  token = token,
-  verbose = TRUE,
-  overwrite = TRUE,
-  description = "Test upload (pure REST multipart)"
-)
-
-up
-
-
-
-
-
-e <- syn_get_entity("syn72248755", token = token, verbose = TRUE)
-e$concreteType
-e$dataFileHandleId
-
-
-
-
-dest <- tempfile(fileext = ".csv")
-dl_path <- syn_download_file("syn72248755", dest_path = dest, overwrite = TRUE,
-                             token = token, verbose = TRUE)
-
-# verify md5 matches what upload returned
-if (requireNamespace("digest", quietly = TRUE)) {
-  md5_dl <- digest::digest(file = dl_path, algo = "md5", serialize = FALSE)
-  md5_dl
-}
-
-read.csv(dest)
+# 
+# # source("synapse_rest_backend.R")
+# 
+# token <- Sys.getenv("SYNAPSE_PAT")
+# project_id <- "syn64728425"
+# 
+# folder_id <- syn_ensure_folder_path(
+#   project_id,
+#   "zz_smoketests/synapse_rw",
+#   token = token,
+#   verbose = TRUE
+# )
+# 
+# 
+# # folder_id <- 'syn72246746'
+# # syn72246747
+# 
+# 
+# tmp <- tempfile(fileext = ".csv")
+# write.csv(data.frame(x=1:5, y=letters[1:5]), tmp, row.names = FALSE)
+# 
+# up <- syn_upload_file(
+#   tmp,
+#   parent_id = folder_id,
+#   token = token,
+#   verbose = TRUE,
+#   overwrite = TRUE,
+#   description = "Test upload (pure REST multipart)"
+# )
+# 
+# up
+# 
+# 
+# 
+# 
+# 
+# e <- syn_get_entity("syn72248755", token = token, verbose = TRUE)
+# e$concreteType
+# e$dataFileHandleId
+# 
+# 
+# 
+# 
+# dest <- tempfile(fileext = ".csv")
+# dl_path <- syn_download_file("syn72248755", dest_path = dest, overwrite = TRUE,
+#                              token = token, verbose = TRUE)
+# 
+# # verify md5 matches what upload returned
+# if (requireNamespace("digest", quietly = TRUE)) {
+#   md5_dl <- digest::digest(file = dl_path, algo = "md5", serialize = FALSE)
+#   md5_dl
+# }
+# 
+# read.csv(dest)
 
 
 
@@ -908,14 +914,14 @@ syn_entity_relpath <- function(base_id,
 #     stringsAsFactors = FALSE
 #   )
 # }
-
-
-token <- Sys.getenv("SYNAPSE_PAT")
-base  <- "syn64728425"
-leaf  <- "syn72246747"
-
-syn_entity_relpath(base, leaf, token = token, verbose = TRUE)
-# "zz_smoketests/synapse_rw"
+# 
+# 
+# token <- Sys.getenv("SYNAPSE_PAT")
+# base  <- "syn64728425"
+# leaf  <- "syn72246747"
+# 
+# syn_entity_relpath(base, leaf, token = token, verbose = TRUE)
+# # "zz_smoketests/synapse_rw"
 
 
 
@@ -1148,24 +1154,24 @@ syn_upload_file_path <- function(local_path,
 }
 
 
-
-
-
-token <- Sys.getenv("SYNAPSE_PAT")
-
-up <- syn_upload_file_path(
-  local_path = "C:/tmp/test.csv",
-  base_id = "syn64728425",
-  remote_folder_path = "zz_smoketests/synapse_rw/test2",
-  token = token,
-  overwrite = TRUE,
-  description = "Uploaded via path wrapper",
-  annotations = list(stage = "smoke", kind = "csv"),
-  verbose = TRUE
-)
-
-
-#' Download a Synapse file specified by a remote path
+#' 
+#' 
+#' 
+#' token <- Sys.getenv("SYNAPSE_PAT")
+#' 
+#' up <- syn_upload_file_path(
+#'   local_path = "C:/tmp/test.csv",
+#'   base_id = "syn64728425",
+#'   remote_folder_path = "zz_smoketests/synapse_rw/test2",
+#'   token = token,
+#'   overwrite = TRUE,
+#'   description = "Uploaded via path wrapper",
+#'   annotations = list(stage = "smoke", kind = "csv"),
+#'   verbose = TRUE
+#' )
+#' 
+#' 
+#' #' Download a Synapse file specified by a remote path
 #'
 #' Remote path format: "folderA/folderB/file.csv" relative to base_id.
 #' This wrapper:
@@ -1219,35 +1225,20 @@ syn_download_file_path <- function(base_id,
                     token = token, verbose = verbose, dry_run = dry_run)
 }
 
-
-token <- Sys.getenv("SYNAPSE_PAT")
-
-dl <- syn_download_file_path(
-  base_id = "syn64728425",
-  remote_file_path = "zz_smoketests/synapse_rw/file650c7dbf6466.csv",
-  dest_path = "C:/tmp/downloads/test.csv",
-  overwrite = TRUE,
-  token = token,
-  verbose = TRUE
-)
-
-
-
-
-available::available("datagrid")  # returns CRAN/GitHub/Bioc status
-available::available("datagrid")  # returns CRAN/GitHub/Bioc status
-
-
-
-
-
-
-
-
-
-
-
-
+# 
+# token <- Sys.getenv("SYNAPSE_PAT")
+# 
+# dl <- syn_download_file_path(
+#   base_id = "syn64728425",
+#   remote_file_path = "zz_smoketests/synapse_rw/file650c7dbf6466.csv",
+#   dest_path = "C:/tmp/downloads/test.csv",
+#   overwrite = TRUE,
+#   token = token,
+#   verbose = TRUE
+# )
+# 
+#  
+# 
 
 
 
