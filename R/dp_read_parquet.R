@@ -1,17 +1,12 @@
 # =============================================================================
 # jj / Klimo Parquet I/O — READING (metadata-aware)
 # =============================================================================
-
-
-# https://chatgpt.com/c/695ff83a-d690-8330-a37a-5d27e9793c4b
-
-
 # Exports:
-#   - klimo_read_parquet_meta()
-#   - klimo_read_parquet() 
-#   - klimo_decode_scaled()
-#   - klimo_attach_units()
-#   - klimo_open_dataset_with_meta()
+#   - dp_read_parquet_meta()
+#   - dp_read_parquet() 
+#   - dp_decode_scaled()
+#   - dp_attach_units()
+#   - dp_open_dataset_with_meta()
 #
 # Notes:
 #   - All tabular returns are data.table.
@@ -158,7 +153,7 @@
 
 #' Read Klimo Parquet schema metadata (spec + audit)
 #' @export
-klimo_read_parquet_meta <- function(path, parse = TRUE) {
+dp_read_parquet_meta <- function(path, parse = TRUE) {
   .klimo_require("arrow")
   .klimo_require("data.table")
   .klimo_require("jsonlite")
@@ -213,7 +208,7 @@ klimo_read_parquet_meta <- function(path, parse = TRUE) {
 #'
 #' @return data.table (modified copy)
 #' @export
-klimo_attach_units <- function(
+dp_attach_units <- function(
     dt,
     audit_dt = NULL,
     spec_dt = NULL,
@@ -243,7 +238,7 @@ klimo_attach_units <- function(
   
   if (isTRUE(warn_unmatched)) {
     miss <- setdiff(map$column, names(dt))
-    if (length(miss)) .klimo_warn("klimo_attach_units(): %d unit entries not found in dt: %s",
+    if (length(miss)) .klimo_warn("dp_attach_units(): %d unit entries not found in dt: %s",
                                   length(miss), paste(head(miss, 12L), collapse = ", "))
   }
   
@@ -271,7 +266,7 @@ klimo_attach_units <- function(
 #'
 #' @return data.table (modified copy)
 #' @export
-klimo_decode_scaled <- function(
+dp_decode_scaled <- function(
     dt,
     audit_dt,
     prefer_scaled_status = TRUE,
@@ -316,7 +311,7 @@ klimo_decode_scaled <- function(
 #' @param parse Logical. If TRUE, parse klimo JSON blobs into data.tables.
 #' @return A list with kv (named list), kv_dt (data.table), spec_dt (data.table or NULL), audit_dt (data.table or NULL)
 #' @export
-klimo_read_parquet_meta <- function(path, parse = TRUE) {
+dp_read_parquet_meta <- function(path, parse = TRUE) {
   .klimo_require("arrow")
   .klimo_require("data.table")
   
@@ -350,10 +345,10 @@ klimo_read_parquet_meta <- function(path, parse = TRUE) {
 
 #' Quick human summary of Klimo metadata for a parquet file
 #' @export
-klimo_meta_summary <- function(path, max_show = 12L) {
+dp_meta_summary <- function(path, max_show = 12L) {
   .klimo_require("data.table")
   
-  meta <- klimo_read_parquet_meta(path, parse = TRUE)
+  meta <- dp_read_parquet_meta(path, parse = TRUE)
   kv <- meta$kv
   audit <- meta$audit_dt
   
@@ -399,7 +394,7 @@ klimo_meta_summary <- function(path, max_show = 12L) {
 #' @param suffix suffix for decoded column name (default "_decoded")
 #' @param drop_encoded whether to drop the encoded/original column
 #' @export
-klimo_decode_encoded <- function(dt, spec_dt, suffix = "_decoded", drop_encoded = FALSE) {
+dp_decode_encoded <- function(dt, spec_dt, suffix = "_decoded", drop_encoded = FALSE) {
   .klimo_require("data.table")
   dt <- .klimo_dt(dt)
   spec_dt <- .klimo_dt(spec_dt)
@@ -443,7 +438,7 @@ klimo_decode_encoded <- function(dt, spec_dt, suffix = "_decoded", drop_encoded 
 #' Else: list(dt=..., meta=..., spec_dt=..., audit_dt=...)
 #'
 #' @export
-klimo_read_parquet <- function(
+dp_read_parquet <- function(
     path,
     metadata = c("apply", "return", "ignore"),
     decode_scaled = TRUE,
@@ -464,19 +459,19 @@ klimo_read_parquet <- function(
   
   if (metadata == "ignore") return(dt)
   
-  meta <- klimo_read_parquet_meta(path, parse = TRUE)
+  meta <- dp_read_parquet_meta(path, parse = TRUE)
   spec_dt  <- meta$spec_dt
   audit_dt <- meta$audit_dt
   
   if (metadata == "apply") {
     if (isTRUE(decode_scaled) && !is.null(audit_dt)) {
-      dt <- klimo_decode_scaled(dt, audit_dt = audit_dt, prefer_scaled_status = TRUE, drop_scaled_cols = FALSE)
+      dt <- dp_decode_scaled(dt, audit_dt = audit_dt, prefer_scaled_status = TRUE, drop_scaled_cols = FALSE)
     }
     if (isTRUE(attach_units)) {
       if (unit_source == "audit") {
-        dt <- klimo_attach_units(dt, audit_dt = audit_dt, prefer = "declared_units")
+        dt <- dp_attach_units(dt, audit_dt = audit_dt, prefer = "declared_units")
       } else {
-        dt <- klimo_attach_units(dt, spec_dt = spec_dt, prefer = "spec", system = system)
+        dt <- dp_attach_units(dt, spec_dt = spec_dt, prefer = "spec", system = system)
       }
     }
   }
@@ -484,7 +479,7 @@ klimo_read_parquet <- function(
   list(dt = dt, meta = meta, spec_dt = spec_dt, audit_dt = audit_dt)
 }
 # this below may be a slightly improved version?
-# klimo_read_parquet <- function(
+# dp_read_parquet <- function(
 #     path,
 #     metadata = c("apply", "return", "ignore"),
 #     decode_scaled = TRUE,
@@ -507,14 +502,14 @@ klimo_read_parquet <- function(
 #   if (metadata == "ignore") return(dt)
 #   
 #   # ---- metadata (schema KV) ----
-#   meta <- klimo_read_parquet_meta(path, parse = TRUE)
+#   meta <- dp_read_parquet_meta(path, parse = TRUE)
 #   spec_dt  <- meta$spec_dt
 #   audit_dt <- meta$audit_dt
 #   
 #   # metadata="return" means: return meta, don't alter dt
 #   if (metadata == "apply") {
 #     if (isTRUE(decode_scaled) && !is.null(audit_dt) && nrow(audit_dt)) {
-#       dt <- klimo_decode_scaled(
+#       dt <- dp_decode_scaled(
 #         dt,
 #         audit_dt = audit_dt,
 #         prefer_scaled_status = TRUE,
@@ -524,9 +519,9 @@ klimo_read_parquet <- function(
 #     
 #     if (isTRUE(attach_units)) {
 #       if (unit_source == "audit") {
-#         dt <- klimo_attach_units(dt, audit_dt = audit_dt, prefer = "declared_units")
+#         dt <- dp_attach_units(dt, audit_dt = audit_dt, prefer = "declared_units")
 #       } else {
-#         dt <- klimo_attach_units(dt, spec_dt = spec_dt, prefer = "spec", system = system)
+#         dt <- dp_attach_units(dt, spec_dt = spec_dt, prefer = "spec", system = system)
 #       }
 #     }
 #   }
@@ -552,7 +547,7 @@ klimo_read_parquet <- function(
 #'
 #' @return list(ds=<Arrow Dataset>, meta=<metadata bundle>, ref_file=<path>)
 #' @export
-klimo_open_dataset_with_meta <- function(path, ref_file = NULL, ...) {
+dp_open_dataset_with_meta <- function(path, ref_file = NULL, ...) {
   .klimo_require("arrow")
   
   files <- NULL
@@ -562,13 +557,13 @@ klimo_open_dataset_with_meta <- function(path, ref_file = NULL, ...) {
     files <- as.character(path)
     files <- files[file.exists(files)]
   }
-  if (!length(files)) .klimo_stop("klimo_open_dataset_with_meta(): no parquet files found.")
+  if (!length(files)) .klimo_stop("dp_open_dataset_with_meta(): no parquet files found.")
   
   if (is.null(ref_file)) ref_file <- files[1]
   if (!file.exists(ref_file)) .klimo_stop("Reference file not found: %s", ref_file)
   
   ds <- arrow::open_dataset(path, ...)
-  meta <- klimo_read_parquet_meta(ref_file, parse = TRUE)
+  meta <- dp_read_parquet_meta(ref_file, parse = TRUE)
   
   list(ds = ds, meta = meta, ref_file = ref_file)
 }
@@ -577,22 +572,22 @@ klimo_open_dataset_with_meta <- function(path, ref_file = NULL, ...) {
 # 
 # library(data.table)
 # 
-# dt <- klimo_read_parquet("test.parquet", metadata = "ignore")
+# dt <- dp_read_parquet("test.parquet", metadata = "ignore")
 # dt
 # 
 # 
-# meta <- klimo_read_parquet_meta("test.parquet", parse = TRUE)
+# meta <- dp_read_parquet_meta("test.parquet", parse = TRUE)
 # meta$kv_dt
 # meta$spec_dt
 # meta$audit_dt
 # 
 # 
-# res <- klimo_read_parquet("test.parquet", metadata = "return")
+# res <- dp_read_parquet("test.parquet", metadata = "return")
 # str(res)
 # 
 # 
 # 
-# res2 <- klimo_read_parquet("test.parquet", metadata = "apply", attach_units = TRUE, unit_source = "audit")
+# res2 <- dp_read_parquet("test.parquet", metadata = "apply", attach_units = TRUE, unit_source = "audit")
 # res2$dt
 # attr(res2$dt$ta, "unit")  # should be "degC" based on audit declared_units
 # 
@@ -603,7 +598,7 @@ klimo_open_dataset_with_meta <- function(path, ref_file = NULL, ...) {
 # 
 # 
 # 
-# bundle <- klimo_open_dataset_with_meta("test.parquet")
+# bundle <- dp_open_dataset_with_meta("test.parquet")
 # ds <- bundle$ds
 # audit_dt <- bundle$meta$audit_dt
 # 
@@ -616,14 +611,14 @@ klimo_open_dataset_with_meta <- function(path, ref_file = NULL, ...) {
 # res_dt <- data.table::as.data.table(res)
 # 
 # # decode using metadata (in R)
-# res_dt <- klimo_decode_scaled(res_dt, audit_dt, drop_scaled_cols = FALSE, overwrite = FALSE)
-# res_dt <- klimo_attach_units(res_dt, audit_dt = audit_dt, prefer = "declared_units")
+# res_dt <- dp_decode_scaled(res_dt, audit_dt, drop_scaled_cols = FALSE, overwrite = FALSE)
+# res_dt <- dp_attach_units(res_dt, audit_dt = audit_dt, prefer = "declared_units")
 # 
 # 
 # 
 # 
 # 
-# # res <- klimo_open_dataset_with_meta("test.parquet", metadata = "return")
+# # res <- dp_open_dataset_with_meta("test.parquet", metadata = "return")
 # # names(res)
 # # # [1] "dt" "meta" "spec_dt" "audit_dt"
 # # 
@@ -632,7 +627,7 @@ klimo_open_dataset_with_meta <- function(path, ref_file = NULL, ...) {
 # # res$audit_dt[]
 # # 
 # # 
-# # res <- klimo_read_parquet(
+# # res <- dp_read_parquet(
 # #   "out_scaled_doc.parquet",
 # #   metadata = "apply",
 # #   decode_scaled = TRUE,

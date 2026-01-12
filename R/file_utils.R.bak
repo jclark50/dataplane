@@ -204,7 +204,7 @@ s3_list_objects <- function(bucket,
       
       if (isTRUE(verbose)) {
         message(sprintf(
-          "[s3_list_objects] attempt %d/%d failed: %s",
+          "[listS3files] attempt %d/%d failed: %s",
           attempt, max_tries, conditionMessage(page_res)
         ))
       }
@@ -216,7 +216,7 @@ s3_list_objects <- function(bucket,
     }
     
     if (inherits(page_res, "error") || inherits(page_res, "warning")) {
-      stop("s3_list_objects() failed ", max_tries, " times for prefix: ", prefix %||% "", call. = FALSE)
+      stop("listS3files() failed ", max_tries, " times for prefix: ", prefix %||% "", call. = FALSE)
     }
     
     page_df <- parse_list(page_res)

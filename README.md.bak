@@ -27,8 +27,8 @@ The package is intentionally **general**, while also being leveraged by other Kl
 
 ### Small utilities
 
-- `s3_list_objects()` helper for listing S3 keys into a consistent tabular form.
-- `require_ram()` and `env_start()` helpers for long-running jobs that need to manage memory/parallel workers.
+- `listS3files()` helper for listing S3 keys into a consistent tabular form.
+- `requireRAM()` and `startEnvironment()` helpers for long-running jobs that need to manage memory/parallel workers.
 - `unit()` helper for tagging vectors with unit attributes (and, where configured, converting units).
 
 ## Installation
@@ -73,11 +73,11 @@ unit(dt$rh)      <- "percent"
 unit(dt$wind10m) <- "m/s"
 unit(dt$wdir10m) <- "deg"
 
-spec <- dp_spec_default(dt, system = "metric")
-dp_spec_preview(spec)
+spec <- klimo_spec_default(dt, system = "metric")
+klimo_spec_preview(spec)
 
 out_file <- file.path(tempdir(), "example_klimo.parquet")
-dp_write_parquet(
+klimo_write_parquet(
   dt,
   path = out_file,
   field_spec = spec,
@@ -87,12 +87,12 @@ dp_write_parquet(
   drop_original = FALSE
 )
 
-meta <- dp_read_parquet_meta(out_file)
+meta <- klimo_read_parquet_meta(out_file)
 meta$kv_dt
 meta$spec_dt
 meta$audit_dt
 
-res <- dp_read_parquet(out_file, metadata = "apply")
+res <- klimo_read_parquet(out_file, metadata = "apply")
 dt2 <- res$dt
 
 str(dt2)
@@ -102,13 +102,13 @@ str(dt2)
 
 ### Parquet / Klimo metadata
 
-- `dp_write_parquet()`
-- `dp_spec_default()`, `dp_spec_preview()`
-- `dp_spec_set_units()`, `dp_spec_set_scale()`
-- `dp_read_parquet()`, `dp_read_parquet_meta()`
-- `dp_meta_summary()`
-- `dp_decode_scaled()`, `dp_decode_encoded()`
-- `dp_open_dataset_with_meta()`
+- `klimo_write_parquet()`
+- `klimo_spec_default()`, `klimo_spec_preview()`
+- `klimo_spec_set_units()`, `klimo_spec_set_scale()`
+- `klimo_read_parquet()`, `klimo_read_parquet_meta()`
+- `klimo_meta_summary()`
+- `klimo_decode_scaled()`, `klimo_decode_encoded()`
+- `klimo_open_dataset_with_meta()`
 
 ### Synapse REST
 
@@ -121,9 +121,9 @@ str(dt2)
 ### Utilities
 
 - `unit()`
-- `s3_list_objects()`
-- `require_ram()`
-- `env_start()`
+- `listS3files()`
+- `requireRAM()`
+- `startEnvironment()`
 
 ## License
 
