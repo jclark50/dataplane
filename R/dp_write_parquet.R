@@ -563,7 +563,7 @@ dp_spec_preview <- function(
   out[, declared_units := data.table::fifelse(
     !is.na(declared_units) & nzchar(declared_units),
     declared_units,
-    data.table::fifelse(sys == "metric", metric_units, imperial_units)
+    if (identical(sys, "metric")) metric_units else imperial_units
   )]
   
   # Writer scaling plan (only if scaled=TRUE and encoding is not scaled_int)
