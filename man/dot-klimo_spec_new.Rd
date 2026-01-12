@@ -6,8 +6,10 @@
 \usage{
 .klimo_spec_new(
   spec_dt,
-  declared_system = c("metric", "imperial"),
-  version = "1"
+  declared_system = c("metric", "imperial", "custom"),
+  version = "1",
+  system = NULL,
+  ...
 )
 }
 \arguments{
