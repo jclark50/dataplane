@@ -1,0 +1,627 @@
+# =============================================================================
+# S3 helpers + small data utilities (package-ready)
+# Drop into: R/utils_s3_and_data.R
+# =============================================================================
+
+#' Create an "S3 directory" placeholder
+#'
+#' S3 does not have real directories; prefixes ending in `/` are treated like
+#' folders by many tools. This function checks whether any objects already exist
+#' under a prefix and, if not, creates a zero-byte placeholder object at that
+#' prefix.
+#'
+#' @param bucket_name Character scalar. S3 bucket name.
+#' @param directory_name Character scalar. Prefix to create. A trailing `/` is
+#'   added if missing.
+#'
+#' @return Invisibly returns `TRUE` if a placeholder object was created, `FALSE`
+#'   if the prefix already had objects.
+#'
+#' @examples
+#' \dontrun{
+#' create_s3_directory("my-bucket", "some/prefix")
+#' create_s3_directory("my-bucket", "some/prefix/")  # equivalent
+#' }
+#'
+#' @importFrom aws.s3 get_bucket put_object
+#' @export
+create_s3_directory <- function(bucket_name, directory_name) {
+  if (!grepl("/$", directory_name)) {
+    directory_name <- paste0(directory_name, "/")
+  }
+  
+  s3_objects <- aws.s3::get_bucket(bucket = bucket_name, prefix = directory_name)
+  
+  if (length(s3_objects) > 0) {
+    message("Directory already exists: ", directory_name)
+    return(invisible(FALSE))
+  }
+  
+  aws.s3::put_object(file = raw(0), object = directory_name, bucket = bucket_name)
+  message("Directory created: ", directory_name)
+  invisible(TRUE)
+}
+
+
+#' Download an R object from S3 (stored as RDS)
+#'
+#' Downloads an object from S3 to a temporary file and reads it with `readRDS()`.
+#'
+#' @param key Character scalar. S3 object key (path) to download.
+#' @param bucket Character scalar. S3 bucket name.
+#' @param fileext Character scalar. Temporary file extension. Defaults to `.rds`.
+#'
+#' @return The R object stored in the RDS.
+#'
+#' @examples
+#' \dontrun{
+#' x <- getS3file("path/to/object.rds", bucket = "my-bucket")
+#' }
+#'
+#' @importFrom aws.s3 save_object
+#' @export
+getS3file <- function(key, bucket, fileext = ".rds") {
+  temp_file <- tempfile(fileext = fileext)
+  
+  aws.s3::save_object(
+    object = key,
+    bucket = bucket,
+    file = temp_file
+  )
+  
+  out <- readRDS(temp_file)
+  unlink(temp_file)
+  out
+}
+
+
+#' List S3 objects with retries and optional ordering
+#'
+#' Wrapper around `aws.s3::get_bucket()` that:
+#' \itemize{
+#'   \item supports basic pagination via `marker`
+#'   \item retries transient failures with backoff
+#'   \item returns a data frame with `Key`, `Size`, `LastModified`, `StorageClass`
+#'   \item can order by `LastModified` and/or return only the tail rows
+#' }
+#'
+#' @param bucket Character scalar. Bucket name.
+#' @param prefix Character scalar or `NULL`. Prefix filter. If `NULL`, defaults to
+#'   `file.path("goes", <UTC-YYYY-mm-dd>)` (preserves original behavior).
+#' @param delimiter Character scalar or `NULL`. Passed to S3 listing.
+#' @param max Integer or `NULL`. Max number of keys to return (approximate).
+#' @param marker Character scalar or `NULL`. Marker for pagination.
+#' @param ... Additional args passed to `aws.s3::get_bucket()`.
+#' @param max_tries Integer. Max attempts per page.
+#' @param wait Numeric. Base wait time (seconds) between retries.
+#' @param backoff Numeric. Multiplier applied to wait after each retry.
+#' @param verbose Logical. If `TRUE`, prints retry messages.
+#' @param order_by_last_modified Logical. If `TRUE`, sorts by `LastModified`.
+#' @param return_tail Logical. If `TRUE`, returns only the last `tail_n` rows after
+#'   optional ordering.
+#' @param tail_n Integer. Rows to return when `return_tail = TRUE`.
+#'
+#' @return A data.frame with columns: `Key`, `Size`, `LastModified`, `StorageClass`.
+#'
+#' @examples
+#' \dontrun{
+#' df <- listS3files(bucket = "my-bucket", prefix = "data/2026-01-01/")
+#' newest <- listS3files("my-bucket", prefix = "data/", order_by_last_modified = TRUE, return_tail = TRUE, tail_n = 5)
+#' }
+#'
+#' @importFrom stats runif
+#' @export
+listS3files <- function(bucket,
+                        prefix = NULL,
+                        delimiter = NULL,
+                        max = NULL,
+                        marker = NULL,
+                        ...,
+                        max_tries = 3,
+                        wait = 1,
+                        backoff = 1.6,
+                        verbose = TRUE,
+                        order_by_last_modified = FALSE,
+                        return_tail = FALSE,
+                        tail_n = 6) {
+  
+  `%||%` <- function(a, b) if (is.null(a) || length(a) == 0) b else a
+  
+  if (is.null(prefix)) {
+    curdate <- format(Sys.time(), "%Y-%m-%d", tz = "UTC")
+    prefix <- file.path("goes", curdate)
+  }
+  
+  parse_list <- function(r) {
+    if (length(r) == 0) {
+      return(data.frame(
+        Key = character(),
+        Size = numeric(),
+        LastModified = as.POSIXct(character()),
+        StorageClass = character(),
+        stringsAsFactors = FALSE
+      ))
+    }
+    
+    rows <- lapply(r, function(x) {
+      key <- x[["Key"]] %||% x[["Name"]] %||% x[["Prefix"]] %||% NA_character_
+      
+      lm <- x[["LastModified"]]
+      if (inherits(lm, "POSIXt")) {
+        lm_posix <- lm
+      } else if (is.character(lm) && length(lm)) {
+        lm_posix <- try(as.POSIXct(lm, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC"), silent = TRUE)
+        if (inherits(lm_posix, "try-error") || is.na(lm_posix)) {
+          lm_posix <- as.POSIXct(lm, tz = "UTC")
+        }
+      } else {
+        lm_posix <- as.POSIXct(NA)
+      }
+      
+      data.frame(
+        Key = key,
+        Size = suppressWarnings(as.numeric(x[["Size"]] %||% NA)),
+        LastModified = lm_posix,
+        StorageClass = x[["StorageClass"]] %||% NA_character_,
+        stringsAsFactors = FALSE
+      )
+    })
+    
+    do.call(rbind, rows)
+  }
+  
+  all_rows <- list()
+  total_fetched <- 0L
+  next_marker <- marker
+  
+  repeat {
+    max_keys_this_call <- 15000L
+    if (!is.null(max)) {
+      remaining <- as.integer(max) - total_fetched
+      if (remaining <= 0L) break
+      max_keys_this_call <- min(1000L, remaining)
+    }
+    
+    delay <- wait
+    page_res <- NULL
+    
+    for (attempt in seq_len(max_tries)) {
+      page_res <- tryCatch(
+        aws.s3::get_bucket(
+          bucket = bucket,
+          prefix = prefix,
+          delimiter = delimiter,
+          max = max_keys_this_call,
+          marker = next_marker,
+          parse_response = TRUE,
+          ...
+        ),
+        error = function(e) e,
+        warning = function(w) w
+      )
+      
+      if (!inherits(page_res, "error") && !inherits(page_res, "warning")) break
+      
+      if (isTRUE(verbose)) {
+        message(sprintf(
+          "[listS3files] attempt %d/%d failed: %s",
+          attempt, max_tries, conditionMessage(page_res)
+        ))
+      }
+      
+      if (attempt < max_tries) {
+        Sys.sleep(delay + stats::runif(1, 0, 0.25 * wait))
+        delay <- delay * backoff
+      }
+    }
+    
+    if (inherits(page_res, "error") || inherits(page_res, "warning")) {
+      stop("listS3files() failed ", max_tries, " times for prefix: ", prefix %||% "", call. = FALSE)
+    }
+    
+    page_df <- parse_list(page_res)
+    n_new <- nrow(page_df)
+    
+    if (n_new > 0L) {
+      all_rows[[length(all_rows) + 1L]] <- page_df
+      total_fetched <- total_fetched + n_new
+      next_marker <- tail(page_df$Key, 1)
+    }
+    
+    at <- attributes(page_res)
+    is_trunc <- FALSE
+    if (!is.null(at) && !is.null(at$IsTruncated)) {
+      is_trunc <- isTRUE(at$IsTruncated)
+    } else {
+      is_trunc <- (n_new == max_keys_this_call) || !is.null(delimiter)
+    }
+    
+    if (!is_trunc) break
+    
+    if (!is.null(at) && !is.null(at$NextMarker) && nzchar(at$NextMarker)) {
+      next_marker <- at$NextMarker
+    }
+    
+    if (n_new == 0L) break
+  }
+  
+  out <- if (length(all_rows)) do.call(rbind, all_rows) else data.frame(
+    Key = character(),
+    Size = numeric(),
+    LastModified = as.POSIXct(character()),
+    StorageClass = character(),
+    stringsAsFactors = FALSE
+  )
+  
+  if (isTRUE(order_by_last_modified) || isTRUE(return_tail)) {
+    if (requireNamespace("data.table", quietly = TRUE)) {
+      dt <- data.table::as.data.table(out)
+      if (isTRUE(order_by_last_modified)) data.table::setorder(dt, LastModified)
+      if (isTRUE(return_tail)) dt <- utils::tail(dt, n = tail_n)
+      out <- as.data.frame(dt)
+    } else {
+      if (isTRUE(order_by_last_modified)) {
+        out <- out[order(out$LastModified, na.last = TRUE), , drop = FALSE]
+      }
+      if (isTRUE(return_tail)) out <- utils::tail(out, n = tail_n)
+    }
+  }
+  
+  out
+}
+
+
+#' Save an R object to S3 (as RDS)
+#'
+#' Serializes an R object via `saveRDS()` into a temporary file, uploads it to S3,
+#' then removes the temporary file.
+#'
+#' @param object R object to serialize.
+#' @param bucket Character scalar. Bucket name.
+#' @param s3_path Character scalar. Destination S3 key (path).
+#' @param temp_dir Character scalar. Directory to place the temporary file.
+#'
+#' @return The result returned by `aws.s3::put_object()`.
+#'
+#' @examples
+#' \dontrun{
+#' res <- jput_s3(list(a = 1), bucket = "my-bucket", s3_path = "tmp/test.rds")
+#' }
+#'
+#' @importFrom aws.s3 put_object
+#' @export
+jput_s3 <- function(object, bucket, s3_path, temp_dir = tempdir()) {
+  temp_file <- tempfile(pattern = "temp_", fileext = ".rds", tmpdir = temp_dir)
+  on.exit(unlink(temp_file), add = TRUE)
+  
+  saveRDS(object, temp_file)
+  aws.s3::put_object(file = temp_file, object = s3_path, bucket = bucket)
+}
+
+
+#' Flatten list-columns into character columns
+#'
+#' For any list-column, converts each element to a single string:
+#' \itemize{
+#'   \item `NULL` -> `NA`
+#'   \item length-1 -> that value
+#'   \item length>1 -> comma-separated string
+#' }
+#'
+#' @param dt A data.frame / tibble / data.table-like object.
+#'
+#' @return An object of the same class as `dt`, with list-columns flattened.
+#'
+#' @examples
+#' x <- data.frame(a = 1:3, b = I(list("x", c("y","z"), NULL)))
+#' flatten_list_columns(x)
+#'
+#' @export
+flatten_list_columns <- function(dt) {
+  out <- dt
+  for (col in names(out)) {
+    if (is.list(out[[col]])) {
+      out[[col]] <- vapply(out[[col]], function(x) {
+        if (is.null(x)) {
+          NA_character_
+        } else if (length(x) == 1) {
+          as.character(x)
+        } else {
+          paste0(as.character(x), collapse = ", ")
+        }
+      }, character(1))
+    }
+  }
+  out
+}
+
+
+#' Filter column names by storage type
+#'
+#' Returns the column names whose *primary class* matches a target set, or (if
+#' `exclude = TRUE`) those that do not.
+#'
+#' @param dat A data.frame / data.table.
+#' @param colType Character. Either `"numeric"` (default) or a character vector
+#'   of class names (e.g., `c("character")`).
+#' @param exlcludedatetime Logical. If `TRUE`, columns with primary class in
+#'   `c("Date","POSIXct","POSIXt")` are excluded from the match set.
+#' @param exclude Logical. If `TRUE`, returns columns *not* matching `colType`.
+#'
+#' @return Character vector of column names.
+#'
+#' @examples
+#' d <- data.frame(x = 1:3, y = c("a","b","c"), t = as.POSIXct("2026-01-01") + 1:3)
+#' filterCols(d, "numeric")
+#' filterCols(d, "character")
+#' filterCols(d, "numeric", exclude = TRUE)
+#'
+#' @export
+filterCols <- function(dat, colType = "numeric", exlcludedatetime = TRUE, exclude = FALSE) {
+  if (identical(colType, "numeric")) {
+    colType <- c("double", "integer", "numeric")
+  }
+  
+  cls1 <- vapply(dat, function(x) class(x)[1], character(1))
+  
+  if (isTRUE(exlcludedatetime)) {
+    is_dt <- cls1 %in% c("Date", "POSIXct", "POSIXt")
+    cls1[is_dt] <- ".__datetime__."
+  }
+  
+  keep <- cls1 %in% colType
+  if (isTRUE(exclude)) keep <- !keep
+  
+  names(dat)[keep]
+}
+
+
+#' Round selected numeric columns
+#'
+#' Rounds specified columns in a data.frame or data.table.
+#'
+#' @param x A data.frame or data.table.
+#' @param cols Character vector of column names to round.
+#' @param digits Integer. Number of decimal places passed to `round()`.
+#' @param in_place Logical. If `TRUE` and `x` is a data.table, modifies `x` by
+#'   reference. Otherwise returns a modified copy.
+#'
+#' @return The modified object (invisibly returns `x` when `in_place = TRUE`).
+#'
+#' @examples
+#' df <- data.frame(a = 1:5/2.1, b = 6:10/1.59)
+#' roundcols(df, cols = c("a","b"), digits = 2)
+#'
+#' \dontrun{
+#' library(data.table)
+#' dt <- data.table(a = 1:5/2.1, b = 6:10/1.59)
+#' roundcols(dt, c("a","b"), 2, in_place = TRUE)
+#' }
+#'
+#' @export
+roundcols <- function(x, cols, digits = 2, in_place = FALSE) {
+  stopifnot(is.character(cols), length(cols) > 0)
+  
+  if (isTRUE(in_place) && inherits(x, "data.table")) {
+    x[, (cols) := lapply(.SD, round, digits = digits), .SDcols = cols]
+    return(invisible(x))
+  }
+  
+  out <- x
+  for (nm in cols) {
+    if (nm %in% names(out)) {
+      out[[nm]] <- round(out[[nm]], digits = digits)
+    }
+  }
+  out
+}
+
+
+#' Trim whitespace from all character columns
+#'
+#' Applies `trimws()` to all character columns in a data.frame/data.table.
+#'
+#' @param data A data.frame or data.table.
+#'
+#' @return The trimmed object (copy).
+#'
+#' @examples
+#' d <- data.frame(a = c("  x", "y  "), b = 1:2, stringsAsFactors = FALSE)
+#' trimallcols(d)
+#'
+#' @export
+trimallcols <- function(data) {
+  out <- data
+  for (nm in names(out)) {
+    if (is.character(out[[nm]])) {
+      out[[nm]] <- trimws(out[[nm]])
+    }
+  }
+  out
+}
+
+
+#' Sanitize a scalar value for SQL-like string construction
+#'
+#' Converts a single value into a form often used when building SQL statements:
+#' \itemize{
+#'   \item `NA` -> `"NULL"` (character)
+#'   \item logical -> `0/1` (integer)
+#'   \item character/Date/POSIXct -> single-quoted, with internal `'` escaped
+#'   \item numeric -> returned as-is
+#' }
+#'
+#' @param x A length-1 value.
+#'
+#' @return A length-1 value suitable for pasting into query text.
+#'
+#' @examples
+#' sanitize_value(NA)
+#' sanitize_value(TRUE)
+#' sanitize_value("O'Reilly")
+#' sanitize_value(as.Date("2026-01-12"))
+#' sanitize_value(3.14)
+#'
+#' @export
+sanitize_value <- function(x) {
+  if (is.na(x)) {
+    return("NULL")
+  } else if (is.logical(x)) {
+    return(as.integer(x))
+  } else if (is.character(x) || inherits(x, "Date") || inherits(x, "POSIXct")) {
+    x <- gsub("'", "''", as.character(x))
+    return(paste0("'", x, "'"))
+  } else {
+    x
+  }
+}
+
+
+#' Convert strings to lowerCamelCase
+#'
+#' Converts arbitrary strings to lowerCamelCase by:
+#' \enumerate{
+#'   \item replacing non-alphanumeric characters with spaces
+#'   \item splitting on whitespace
+#'   \item lowercasing the first token
+#'   \item TitleCasing subsequent tokens
+#'   \item concatenating tokens
+#' }
+#'
+#' @param string Character vector.
+#'
+#' @return Character vector of the same length, converted to lowerCamelCase.
+#'
+#' @examples
+#' to_camel_case(c("hello world", "some_value", "  already  camel  "))
+#'
+#' @export
+to_camel_case <- function(string) {
+  stopifnot(is.character(string))
+  
+  to_title_ascii <- function(x) {
+    if (!nzchar(x)) return(x)
+    paste0(toupper(substr(x, 1, 1)), tolower(substr(x, 2, nchar(x))))
+  }
+  
+  vapply(string, function(s) {
+    s <- gsub("[^[:alnum:]]+", " ", s)
+    s <- trimws(s)
+    if (!nzchar(s)) return("")
+    
+    parts <- strsplit(s, "\\s+")[[1]]
+    parts <- parts[nzchar(parts)]
+    if (!length(parts)) return("")
+    
+    parts <- tolower(parts)
+    if (length(parts) >= 2) parts[-1] <- vapply(parts[-1], to_title_ascii, character(1))
+    paste0(parts, collapse = "")
+  }, character(1))
+}
+
+
+#' Collapse strings into a quoted, delimited single string
+#'
+#' Convenience helper for building strings like:
+#' `'a', 'b', 'c'`
+#'
+#' @param someStrings Vector/list of strings.
+#' @param collapsewith Character. Delimiter placed between values.
+#' @param leadendwith Character. String placed at the start and end (often a quote).
+#'
+#' @return A single character string.
+#'
+#' @examples
+#' collapse(c("a","b","c"))
+#' collapse(c("x","y"), collapsewith = ",", leadendwith = "\"")
+#'
+#' @export
+collapse <- function(someStrings, collapsewith = "', '", leadendwith = "'") {
+  x <- as.character(unlist(someStrings, use.names = FALSE))
+  inner <- base::paste(x, collapse = collapsewith)
+  paste0(leadendwith, inner, leadendwith)
+}
+
+
+#' Column-bind a list of objects
+#'
+#' Thin wrapper around `do.call(cbind, ...)`.
+#'
+#' @param alist List of objects with compatible row counts.
+#'
+#' @return The column-bound result.
+#'
+#' @examples
+#' cbindlist(list(a = 1:3, b = 4:6))
+#'
+#' @export
+cbindlist <- function(alist) {
+  do.call(cbind, alist)
+}
+
+
+#' Merge a list of data.frames/data.tables by keys
+#'
+#' Iteratively merges a list of tabular objects using `merge(..., all = TRUE)`.
+#'
+#' @param alist List of data.frames / data.tables.
+#' @param by Character vector of key columns passed to `merge()`.
+#'
+#' @return A merged data.frame/data.table (depends on inputs).
+#'
+#' @examples
+#' a <- data.frame(id = 1:3, x = 11:13)
+#' b <- data.frame(id = 2:4, y = 21:23)
+#' mergeDTlist(list(a, b), by = "id")
+#'
+#' @export
+mergeDTlist <- function(alist, by) {
+  Reduce(function(...) merge(..., all = TRUE, by = by), alist)
+}
+
+
+#' Repeat a scalar to length n (or recycle shorter vectors)
+#'
+#' Utility for aligning scalar parameters with vectorized data.
+#'
+#' @param var A vector or `NULL`.
+#' @param n Integer target length.
+#'
+#' @return `NULL` if `var` is `NULL`; otherwise a vector of length `n` (or the
+#'   original vector if already length `n` or longer). If `length(var) < n`, the
+#'   value is recycled with a warning.
+#'
+#' @examples
+#' repvar(NULL, 5)
+#' repvar(3, 5)
+#' repvar(1:2, 5)
+#'
+#' @export
+repvar <- function(var, n) {
+  if (is.null(var)) {
+    return(NULL)
+  }
+  if (length(var) == 1) {
+    return(rep(var, n))
+  }
+  if (length(var) < n) {
+    warning("Length of variable is less than expected, repeating to match the data length.", call. = FALSE)
+    return(rep(var, length.out = n))
+  }
+  var
+}
+
+
+#' Remove NULL elements from a list
+#'
+#' @param alist A list.
+#'
+#' @return A list with all `NULL` entries removed.
+#'
+#' @examples
+#' deleteNULL(list(a = 1, b = NULL, c = 3))
+#'
+#' @export
+deleteNULL <- function(alist) {
+  Filter(Negate(is.null), alist)
+}
