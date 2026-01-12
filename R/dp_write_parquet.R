@@ -560,10 +560,10 @@ dp_spec_preview <- function(
   # - if declared_units is already provided, use it;
   # - else use metric_units or imperial_units based on spec$declared_system
   sys <- spec$declared_system
-  out[, declared_units := fifelse(
+  out[, declared_units := data.table::fifelse(
     !is.na(declared_units) & nzchar(declared_units),
     declared_units,
-    fifelse(sys == "metric", metric_units, imperial_units)
+    data.table::fifelse(sys == "metric", metric_units, imperial_units)
   )]
   
   # Writer scaling plan (only if scaled=TRUE and encoding is not scaled_int)
@@ -625,7 +625,7 @@ dp_spec_preview <- function(
 #   if (!("observed_units" %in% names(dt))) dt[, observed_units := NA_character_]
 #   
 #   # unit status (declared vs observed)
-#   dt[, unit_status := data.table::fifelse(
+#   dt[, unit_status := data.table::data.table::fifelse(
 #     is.na(declared_units) | !nzchar(declared_units), "no_declared_unit",
 #     data.table::fifelse(
 #       is.na(observed_units) | !nzchar(observed_units), "missing_observed_unit",

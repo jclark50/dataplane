@@ -1,6 +1,6 @@
 Package: dataplane
 Title: Data Architecture and Processing Helpers
-Version: 0.1.0
+Version: 0.1.1
 Authors@R: 
     person("Jordan", "Clark", email = "jordanjclark50@gmail.com", role = c("aut", "cre"))
 Description: Tools for structuring, validating, and transforming datasets with a focus on repeatable pipelines and clear metadata.
@@ -15,4 +15,5 @@ Imports:
     digest,
     dplyr,
     httr2,
-    jsonlite
+    jsonlite,
+    aws.s3
