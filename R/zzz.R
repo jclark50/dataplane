@@ -23,3 +23,6 @@ utils::globalVariables(c(
   # any other NSE vars flagged
   "..metric_units", "..imperial_units"
 ))
+
+
+#' @useDynLib weathertools, .registration = TRUE
