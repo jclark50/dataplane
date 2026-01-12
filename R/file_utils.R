@@ -19,13 +19,13 @@
 #'
 #' @examples
 #' \dontrun{
-#' create_s3_directory("my-bucket", "some/prefix")
-#' create_s3_directory("my-bucket", "some/prefix/")  # equivalent
+#' s3_create_dir("my-bucket", "some/prefix")
+#' s3_create_dir("my-bucket", "some/prefix/")  # equivalent
 #' }
 #'
 #' @importFrom aws.s3 get_bucket put_object
 #' @export
-create_s3_directory <- function(bucket_name, directory_name) {
+s3_create_dir <- function(bucket_name, directory_name) {
   if (!grepl("/$", directory_name)) {
     directory_name <- paste0(directory_name, "/")
   }
@@ -55,12 +55,12 @@ create_s3_directory <- function(bucket_name, directory_name) {
 #'
 #' @examples
 #' \dontrun{
-#' x <- getS3file("path/to/object.rds", bucket = "my-bucket")
+#' x <- s3_download_file("path/to/object.rds", bucket = "my-bucket")
 #' }
 #'
 #' @importFrom aws.s3 save_object
 #' @export
-getS3file <- function(key, bucket, fileext = ".rds") {
+s3_download_file <- function(key, bucket, fileext = ".rds") {
   temp_file <- tempfile(fileext = fileext)
   
   aws.s3::save_object(
@@ -105,13 +105,13 @@ getS3file <- function(key, bucket, fileext = ".rds") {
 #'
 #' @examples
 #' \dontrun{
-#' df <- listS3files(bucket = "my-bucket", prefix = "data/2026-01-01/")
-#' newest <- listS3files("my-bucket", prefix = "data/", order_by_last_modified = TRUE, return_tail = TRUE, tail_n = 5)
+#' df <- s3_list_objects(bucket = "my-bucket", prefix = "data/2026-01-01/")
+#' newest <- s3_list_objects("my-bucket", prefix = "data/", order_by_last_modified = TRUE, return_tail = TRUE, tail_n = 5)
 #' }
 #'
 #' @importFrom stats runif
 #' @export
-listS3files <- function(bucket,
+s3_list_objects <- function(bucket,
                         prefix = NULL,
                         delimiter = NULL,
                         max = NULL,
@@ -290,7 +290,7 @@ listS3files <- function(bucket,
 #'
 #' @importFrom aws.s3 put_object
 #' @export
-jput_s3 <- function(object, bucket, s3_path, temp_dir = tempdir()) {
+s3_upload_file <- function(object, bucket, s3_path, temp_dir = tempdir()) {
   temp_file <- tempfile(pattern = "temp_", fileext = ".rds", tmpdir = temp_dir)
   on.exit(unlink(temp_file), add = TRUE)
   
