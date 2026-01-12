@@ -285,7 +285,7 @@ s3_list_objects <- function(bucket,
 #'
 #' @examples
 #' \dontrun{
-#' res <- jput_s3(list(a = 1), bucket = "my-bucket", s3_path = "tmp/test.rds")
+#' res <- s3_upload_file(list(a = 1), bucket = "my-bucket", s3_path = "tmp/test.rds")
 #' }
 #'
 #' @importFrom aws.s3 put_object
