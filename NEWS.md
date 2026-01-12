@@ -1,3 +1,3 @@
-# data.plane (development version)
+# dataplane 0.1.0
 
 * Initial CRAN submission.
