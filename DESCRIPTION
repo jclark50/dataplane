@@ -16,4 +16,5 @@ Imports:
     dplyr,
     httr2,
     jsonlite,
-    aws.s3
+    aws.s3,
+    lubridate

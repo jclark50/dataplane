@@ -52,8 +52,8 @@ mavtime <- function(timevals, datavals, timewindow, timeunits = "min", resample 
     
     # Create a regular time sequence based on resampleinterval
     time_seq <- seq(
-        from = floor_date(min(dt_original$datetime, na.rm = TRUE), unit = unit),
-        to = ceiling_date(max(dt_original$datetime, na.rm = TRUE), unit = unit),
+        from = lubridate::floor_date(min(dt_original$datetime, na.rm = TRUE), unit = unit),
+        to = lubridate::ceiling_date(max(dt_original$datetime, na.rm = TRUE), unit = unit),
         by = resampleinterval
     )
     
