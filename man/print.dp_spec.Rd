@@ -15,5 +15,5 @@
 The input `x` (invisibly).
 }
 \description{
-Compact print method for `dp_spec` objects.
+Compact printer for `dp_spec` objects.
 }

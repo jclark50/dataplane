@@ -2,6 +2,6 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 mavtime_cpp <- function(x, window) {
-    .Call('_dataplane_mavtime_cpp', PACKAGE = 'dataplane', x, window)
+    .Call(`_dataplane_mavtime_cpp`, x, window)
 }
 

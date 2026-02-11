@@ -7,25 +7,25 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-~~~{r setup, include=FALSE}
+```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment  = "#>",
   message  = FALSE,
   warning  = TRUE
 )
-~~~
+```
 
 ## Overview
 
-This vignette shows how to use Dataplane’s Parquet utilities to:
+This vignette shows how to use Dataplane’s Parquet/Dataset utilities to:
 
 - create and edit a **spec** that documents column meaning, units, and storage intent
 - optionally attach **unit attributes** to data columns (lightweight, R-native)
 - optionally apply **integer storage encoding** (e.g., store `25.12` as `2512`)
 - write and read **Parquet files** with embedded metadata
-- write and read **Arrow Datasets** (directories of Parquet files) with a sidecar metadata file
-- quickly inspect (“detect”) whether a file/dataset likely contains Dataplane metadata
+- write and open **Arrow Datasets** (directories of Parquet files) with a sidecar metadata file
+- quickly inspect (“dp_detect”) whether a file/dataset likely contains Dataplane metadata
 
 All examples are intentionally small and use a temporary directory.
 
@@ -40,7 +40,6 @@ library(data.table)
 library(arrow)
 library(dplyr)
 library(dataplane)
-
 ```
 
 > **Development note (not needed for published vignettes):**  
@@ -79,15 +78,15 @@ At minimum, a spec can capture:
 - **metric/imperial/declared units** (documentation)
 - **writer_scale** (how you *intend* to store values if using integer scaling)
 
-The main entry point is `spec_default()`.
+The main entry point is `dp_spec_default()` (also exported as the alias `dp_spec()`).
 
 ### 1.1 Create a default spec
 
-`spec_default()` uses a small internal concept catalog (synonyms) to pre-fill what it can.
+`dp_spec_default()` uses a small internal concept catalog (synonyms) to pre-fill what it can.
 Anything it cannot confidently match is left blank (NA), by design.
 
 ```{r spec-default}
-sp <- spec_default(dt, declared_system = "metric", include_unmatched = TRUE)
+sp <- dp_spec_default(dt, declared_system = "metric", include_unmatched = TRUE)
 sp
 ```
 
@@ -109,14 +108,14 @@ Key columns you’ll see:
 
 ---
 
-## 2) Editing specs: set_units() and set_scale()
+## 2) Editing specs: dp_set_units() and dp_set_scale()
 
 A helpful mental model:
 
-- `set_units()` and `set_scale()` **edit the spec** (documentation + intent).
+- `dp_set_units()` and `dp_set_scale()` **edit the spec** (documentation + intent).
 - They do **not** change your data.
 
-### 2.1 Override units for specific columns (set_units)
+### 2.1 Override units for specific columns (dp_set_units)
 
 You can update metric/imperial units and also optionally force a declared unit.
 
@@ -125,7 +124,7 @@ You can update metric/imperial units and also optionally force a declared unit.
   declared units from metric/imperial.
 
 ```{r set-units}
-sp <- set_units(
+sp <- dp_set_units(
   sp,
   columns        = c("wind"),
   metric_units   = "m/s",
@@ -133,12 +132,12 @@ sp <- set_units(
 )
 
 # Force declared units for a single column (optional pattern)
-sp <- set_units(sp, columns = "wbgt", declared_units = "degC")
+sp <- dp_set_units(sp, columns = "wbgt", declared_units = "degC")
 
 sp$fields[]
 ```
 
-### 2.2 Set scaling intent (set_scale)
+### 2.2 Set scaling intent (dp_set_scale)
 
 Integer scaling is optional. When you set `writer_scale`, you’re stating:
 
@@ -150,28 +149,28 @@ Examples:
 - `writer_scale = 10000` for lat/lon preserves 4 decimals as integers
 
 ```{r set-scale}
-sp <- set_scale(sp, columns = c("temp", "wbgt"), writer_scale = 100)
-sp <- set_scale(sp, columns = c("lat", "lon"),  writer_scale = 10000)
+sp <- dp_set_scale(sp, columns = c("temp", "wbgt"), writer_scale = 100)
+sp <- dp_set_scale(sp, columns = c("lat", "lon"),  writer_scale = 10000)
 
 sp$fields[]
 ```
 
 ---
 
-## 3) Unit attributes on columns: tag_units() and check_units()
+## 3) Unit attributes on columns: dp_tag_units() and dp_check_units()
 
 Another mental model:
 
-- `tag_units()` **applies** your spec to a data object by attaching unit attributes
+- `dp_tag_units()` **applies** your spec to a data object by attaching unit attributes
   (e.g., `attr(x$temp, "units") <- "degC"`).
-- `set_units()` edits the spec; `tag_units()` edits (a copy of) the data.
+- `dp_set_units()` edits the spec; `dp_tag_units()` edits (a copy of) the data.
 
-### 3.1 Tag missing unit attributes (tag_units)
+### 3.1 Tag missing unit attributes (dp_tag_units)
 
-`tag_units()` returns a **copy** of your data plus an audit table of what it did.
+`dp_tag_units()` returns a **copy** of your data plus an audit table of what it did.
 
 ```{r tag-units}
-tag <- tag_units(dt, sp, only_missing = TRUE, system = "declared", unit_attr = "units")
+tag <- dp_tag_units(dt, sp, only_missing = TRUE, system = "declared", unit_attr = "units")
 
 dt_u <- tag$dt
 tag$did_tag[]
@@ -184,9 +183,9 @@ attr(dt_u$temp, "units")
 attr(dt_u$wind, "units")
 ```
 
-### 3.2 Validate unit consistency (check_units)
+### 3.2 Validate unit consistency (dp_check_units)
 
-`check_units()` returns an audit table and warns if it sees issues.
+`dp_check_units()` returns an audit table and warns if it sees issues.
 
 This is intentionally forgiving by default:
 
@@ -194,7 +193,7 @@ This is intentionally forgiving by default:
 - it reports missing columns, missing units, mismatches, and unexpected units
 
 ```{r check-units}
-audit_units <- check_units(
+audit_units <- dp_check_units(
   dt_u, sp,
   system      = "declared",
   unit_attr   = "units",
@@ -212,14 +211,14 @@ audit_units[]
 Scaling is opt-in. There are two separate concerns:
 
 - **in-memory encoding/decoding**: useful for experimentation
-- **on-write scaling**: handled automatically by `write_parquet(..., scale = TRUE)`
+- **on-write scaling**: handled automatically by `dp_write(..., scale=TRUE)`
 
-### 4.1 Encode: create integer storage columns (scale_encode)
+### 4.1 Encode: create integer storage columns (dp_scale_encode)
 
 This creates new columns (default suffix `_i`) containing the integer-scaled values.
 
 ```{r scale-encode}
-enc <- scale_encode(dt, sp, suffix = "_i", drop_original = FALSE, round_fn = "round")
+enc <- dp_scale_encode(dt, sp, suffix = "_i", drop_original = FALSE, round_fn = "round")
 
 dt_enc    <- enc$dt
 scale_map <- enc$scale_map
@@ -228,27 +227,27 @@ dt_enc
 scale_map[]
 ```
 
-### 4.2 Decode: reconstruct original values from storage columns (scale_decode)
+### 4.2 Decode: reconstruct original values from storage columns (dp_scale_decode)
 
-`scale_decode()` needs the audit/plan table (the “map”) that identifies:
+`dp_scale_decode()` needs the audit/plan table (the “map”) that identifies:
 
 - base column name
 - storage column name
 - writer_scale used
 
 ```{r scale-decode}
-dt_dec <- scale_decode(dt_enc, audit_dt = scale_map, keep_storage = TRUE, overwrite = FALSE)
+dt_dec <- dp_scale_decode(dt_enc, audit_dt = scale_map, keep_storage = TRUE, overwrite = FALSE)
 dt_dec
 ```
 
 ---
 
-## 5) Parquet I/O: write_parquet() and read_parquet()
+## 5) Parquet I/O: dp_write() and dp_read()
 
 Core workflow:
 
-- `write_parquet()` writes data to a Parquet file and embeds metadata in schema key/value pairs
-- `read_parquet()` reads data back and optionally:
+- `dp_write()` writes data to a Parquet file and embeds metadata in schema key/value pairs
+- `dp_read()` reads data back and optionally:
   - decodes scaled storage columns
   - reattaches declared unit attributes
 
@@ -264,17 +263,17 @@ pq_path
 
 Now write.
 
-Important arguments:
+Important arguments (Parquet write):
 
 - `spec`: either `"metric"/"imperial"` or a spec object (preferred once you edit it)
 - `mode`:
   - `"document"`: minimal checks, just write metadata
-  - `"validate"`: run `check_units()` before writing (warns by default)
+  - `"validate"`: run `dp_check_units()` before writing (warns by default)
 - `scale`: if TRUE, create integer storage columns at write time
 - `tag_missing_units`: if TRUE, attach unit attributes before writing
 
 ```{r write-parquet}
-res_w <- dataplane::write_parquet(
+res_w <- dp_write(
   x = dt,
   path = pq_path,
   spec = sp,
@@ -286,26 +285,24 @@ res_w <- dataplane::write_parquet(
   compression = "zstd"
 )
 
-# write_parquet() returns a list invisibly; show a few useful pieces:
+# dp_write() returns a list invisibly; show a few useful pieces:
 names(res_w)
 ```
 
 ### 5.2 Read back (decode + attach units)
 
-`read_parquet()` returns a list with:
+`dp_read()` returns a list with:
 
 - `$dt`: the data
 - `$meta`: parsed metadata (including the spec table and audit table)
 
 ```{r read-parquet}
-
-res_r <- dataplane::read_parquet(
+res_r <- dp_read(
   path = pq_path,
   decode_scaled = TRUE,
   keep_storage  = TRUE,
   attach_units  = "declared"
 )
-
 
 dt2   <- res_r$dt
 meta2 <- res_r$meta
@@ -322,7 +319,7 @@ attr(dt2$wbgt, "units")
 
 ---
 
-## 6) Metadata-only reads: read_parquet_meta()
+## 6) Metadata-only reads: dp_read_meta()
 
 Sometimes you want to inspect metadata without loading data.
 
@@ -333,7 +330,7 @@ This is common when:
 - you want to see what scaling was applied
 
 ```{r read-meta-only}
-m <- read_parquet_meta(pq_path, parse = TRUE)
+m <- dp_read_meta(pq_path, parse = TRUE)
 
 m$prefix
 names(m$kv)
@@ -345,7 +342,7 @@ m$audit_dt[]
 
 ---
 
-## 7) Dataset directories (Arrow Datasets): write_dataset() and open_dataset()
+## 7) Dataset directories (Arrow Datasets): dp_write() and dp_open()
 
 Arrow Datasets are directory-based collections of Parquet files.
 
@@ -354,7 +351,7 @@ Dataplane stores dataset metadata in a sidecar Parquet file in the dataset direc
 (e.g., `dp_meta.parquet`). By default, Arrow may try to treat that sidecar file as part
 of the dataset unless you tell Arrow to ignore files with a prefix like `dp_`.
 
-This vignette demonstrates the recommended call pattern: pass `ignore_prefixes = "dp_"`.
+This vignette demonstrates the recommended call pattern: pass `ignore_prefixes` containing `dp_`.
 
 ### 7.1 Write a dataset + sidecar metadata
 
@@ -362,28 +359,29 @@ This vignette demonstrates the recommended call pattern: pass `ignore_prefixes =
 ds_dir <- file.path(out_dir, "example_dataset")
 dir.create(ds_dir, recursive = TRUE, showWarnings = FALSE)
 
-# Create an Arrow Table and write as a dataset
+# Create an Arrow Table (small demo)
 tbl <- arrow::Table$create(dt)
 
-res_ds <- write_dataset(
+res_ds <- dp_write_dataset(
   x = tbl,
   path = ds_dir,
   spec = sp,
-  scale_document = TRUE,   # documents intended storage columns; does not change data
+  scale_document = TRUE,   # documents intended storage columns; does NOT transform data
   prefix = "dp",
   write_format = "parquet"
 )
 
 res_ds$sidecar_path
 
-# Show what's on disk (useful for debugging / transparency)
+# Show what's on disk
 list.files(ds_dir, recursive = TRUE)
+
 ```
 
 ### 7.2 Open the dataset and read metadata (recommended)
 
 ```{r open-dataset}
-opened <- open_dataset(
+opened <- dp_open(
   ds_dir,
   metadata = "sidecar",
   # IMPORTANT: ignore "dp_" so the sidecar dp_meta.parquet is NOT treated as a data file
@@ -408,14 +406,13 @@ cat("Dataset columns:\n")
 print(ds_cols)
 
 # Guardrail: if the dataset accidentally contains only the sidecar column, re-open with ignore_prefixes.
-# (This should not trigger with the recommended open_dataset() call above, but it prevents confusing failures.)
 if (length(ds_cols) == 1 && identical(ds_cols, "dp_meta")) {
   message(
     "Dataset schema contains only 'dp_meta'. This usually means the sidecar file ",
     "was included as a data file. Re-opening the dataset while ignoring 'dp_' files."
   )
 
-  opened <- open_dataset(
+  opened <- dp_open(
     ds_dir,
     metadata = "sidecar",
     ignore_prefixes = c("dp_", "_dp_", "klimo_", "_klimo_")
@@ -488,16 +485,16 @@ res
 
 ---
 
-## 8) Detection: detect() and print_detect()
+## 8) dp_detection: dp_detect() and print_dp_detect()
 
-```{r detect-file}
-d_file <- detect(pq_path, mode = "detect")
-print_detect(d_file)
+```{r dp_detect-file}
+d_file <- dp_detect(pq_path, mode = "detect")
+dp_print_detect(d_file)
 ```
 
-```{r detect-dataset}
-d_dir <- detect(ds_dir, mode = "detect")
-print_detect(d_dir)
+```{r dp_detect-dataset}
+d_dir <- dp_detect(ds_dir, mode = "detect")
+dp_print_detect(d_dir)
 ```
 
 ---
@@ -512,7 +509,7 @@ a different prefix (e.g., `klimo:`), you can specify:
 
 ```{r legacy-prefix}
 # Example call pattern (no actual legacy file needed for the vignette)
-res_any <- read_parquet(
+res_any <- dp_read(
   path = pq_path,
   preferred_prefix = "dp",
   legacy_prefixes = c("klimo")
@@ -527,10 +524,10 @@ res_any$meta$prefix
 
 ### Recommended workflow (typical)
 
-1. Start with `spec_default(dt, "metric")`
-2. Edit: `set_units()` / `set_scale()`
-3. Write: `write_parquet(..., spec = sp, mode = "validate", scale = TRUE)`
-4. Read: `read_parquet(..., decode_scaled = TRUE, attach_units = "declared")`
+1. Start with `dp_spec_default(dt, "metric")`
+2. Edit: `dp_set_units()` / `dp_set_scale()`
+3. Write: `dp_write(..., spec = sp, mode = "validate", scale = TRUE)`
+4. Read: `dp_read(..., decode_scaled = TRUE, attach_units = "declared")`
 
 ### When to use scaling
 
