@@ -450,20 +450,6 @@ spec_default <- function(x, declared_system = c("metric", "imperial"), include_u
   .dp_spec_new(out_dt, declared_system = declared_system, version = "2")
 }
 
-# -----------------------------------------------------------------------------
-#' Create a default spec (alias)
-#'
-#' Back-compatible alias for [spec_default()]. This exists mainly because users
-#' often expect a constructor named `dp_spec()`.
-#'
-#' @inheritParams spec_default
-#'
-#' @return A `dp_spec` object.
-#' @export
-#' @rdname spec_default
-dp_spec <- function(x, declared_system = c("metric", "imperial"), include_unmatched = TRUE) {
-  spec_default(x, declared_system = declared_system, include_unmatched = include_unmatched)
-}
 
 # -----------------------------------------------------------------------------
 #' Set units in a spec

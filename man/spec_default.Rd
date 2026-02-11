@@ -2,7 +2,6 @@
 % Please edit documentation in R/dp_parquet_v2.R
 \name{spec_default}
 \alias{spec_default}
-\alias{dp_spec}
 \title{Create a default spec from a table}
 \usage{
 spec_default(
@@ -10,8 +9,6 @@ spec_default(
   declared_system = c("metric", "imperial"),
   include_unmatched = TRUE
 )
-
-dp_spec(x, declared_system = c("metric", "imperial"), include_unmatched = TRUE)
 }
 \arguments{
 \item{x}{A `data.frame` or `data.table` (only column names are used).}
@@ -24,16 +21,11 @@ no concept match is found. If `FALSE`, only keep matched columns.}
 }
 \value{
 A `dp_spec` object.
-
-A `dp_spec` object.
 }
 \description{
 Builds a `dp_spec` describing the columns in `x`. Dataplane uses a small
 built-in concept catalog (synonyms) to populate known concepts/units/scales.
 Unmatched columns are left as `NA` by design.
-
-Back-compatible alias for [spec_default()]. This exists mainly because users
-often expect a constructor named `dp_spec()`.
 }
 \examples{
 \dontrun{
