@@ -36,10 +36,11 @@ All examples are intentionally small and use a temporary directory.
 Dataplane is designed to work cleanly with Arrow and data.table.
 
 ```{r packages}
-library(dataplane)
 library(data.table)
 library(arrow)
 library(dplyr)
+library(dataplane)
+
 ```
 
 > **Development note (not needed for published vignettes):**  
@@ -273,7 +274,7 @@ Important arguments:
 - `tag_missing_units`: if TRUE, attach unit attributes before writing
 
 ```{r write-parquet}
-res_w <- write_parquet(
+res_w <- dataplane::write_parquet(
   x = dt,
   path = pq_path,
   spec = sp,
@@ -297,12 +298,14 @@ names(res_w)
 - `$meta`: parsed metadata (including the spec table and audit table)
 
 ```{r read-parquet}
-res_r <- read_parquet(
+
+res_r <- dataplane::read_parquet(
   path = pq_path,
   decode_scaled = TRUE,
   keep_storage  = TRUE,
   attach_units  = "declared"
 )
+
 
 dt2   <- res_r$dt
 meta2 <- res_r$meta

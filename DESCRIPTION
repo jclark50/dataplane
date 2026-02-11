@@ -18,3 +18,7 @@ Imports:
     jsonlite,
     aws.s3,
     lubridate
+Suggests:
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
