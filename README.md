@@ -1,130 +1,26 @@
+
 # dataplane
 
-**dataplane** is a general-purpose toolkit for data architecture and reproducible data workflows in R.  
-It targets data scientists, climate practitioners, and anyone working with data pipelines.
+<!-- badges: start -->
+<!-- badges: end -->
 
-The package is intentionally **general**, while also being leveraged by other Klimo packages.
-
-## Key capabilities
-
-### Parquet I/O with embedded metadata (“Klimo Parquet”)
-
-- Write Parquet with a **field specification** (declared units, suggested scaling, and column concepts).
-- Optionally write **scaled integer columns** for compact storage.
-- Store a **spec** and an **audit record** in Parquet schema key-value metadata.
-- Read Parquet and reconstruct metadata (spec + audit), optionally applying:
-  - decoding of scaled integer columns, and/or
-  - attaching unit attributes back onto columns.
-
-### Synapse REST utilities (pure R)
-
-- A lightweight Synapse client implemented in R (via `httr2`) for:
-  - resolving tokens,
-  - folder creation,
-  - file upload/download,
-  - annotations (get/set),
-  - entity lookup by path.
-
-### Small utilities
-
-- `s3_list_objects()` helper for listing S3 keys into a consistent tabular form.
-- `require_ram()` and `env_start()` helpers for long-running jobs that need to manage memory/parallel workers.
-- `unit()` helper for tagging vectors with unit attributes (and, where configured, converting units).
+The goal of dataplane is to ...
 
 ## Installation
 
-### GitHub (public repo)
+You can install the development version of dataplane from [GitHub](https://github.com/) with:
 
 ``` r
-install.packages("pak")
+# install.packages("pak")
 pak::pak("jclark50/dataplane")
 ```
 
-Alternative:
+## Example
+
+This is a basic example which shows you how to solve a common problem:
 
 ``` r
-install.packages("remotes")
-remotes::install_github("jclark50/dataplane")
-```
-
-## Quick start: write Parquet + read metadata back
-
-``` r
-library(data.table)
 library(dataplane)
-
-dt <- data.table(
-  site_id = c("A", "A", "A", "B", "B"),
-  ts_utc  = as.POSIXct(
-    c("2026-01-10 12:00:00", "2026-01-10 13:00:00", "2026-01-10 14:00:00",
-      "2026-01-10 12:00:00", "2026-01-10 13:00:00"),
-    tz = "UTC"
-  ),
-  ta      = c( 1.3,  2.1,  2.8, -0.4,  0.2),
-  td      = c(-1.2, -0.4,  0.1, -2.3, -1.8),
-  rh      = c(80, 75, 70, 85, 83),
-  wind10m = c(2.5, 3.1, 1.7, 4.2, 2.9),
-  wdir10m = c(220, 235, 210, 190, 205)
-)
-
-unit(dt$ta)      <- "degC"
-unit(dt$td)      <- "degC"
-unit(dt$rh)      <- "percent"
-unit(dt$wind10m) <- "m/s"
-unit(dt$wdir10m) <- "deg"
-
-spec <- dp_spec_default(dt, system = "metric")
-dp_spec_preview(spec)
-
-out_file <- file.path(tempdir(), "example_klimo.parquet")
-dp_write_parquet(
-  dt,
-  path = out_file,
-  field_spec = spec,
-  declared_system = "metric",
-  unit_mode = "validate",
-  scaled = TRUE,
-  drop_original = FALSE
-)
-
-meta <- dp_read_parquet_meta(out_file)
-meta$kv_dt
-meta$spec_dt
-meta$audit_dt
-
-res <- dp_read_parquet(out_file, metadata = "apply")
-dt2 <- res$dt
-
-str(dt2)
+## basic example code
 ```
 
-## Reference: main user-facing functions
-
-### Parquet / Klimo metadata
-
-- `dp_write_parquet()`
-- `dp_spec_default()`, `dp_spec_preview()`
-- `dp_spec_set_units()`, `dp_spec_set_scale()`
-- `dp_read_parquet()`, `dp_read_parquet_meta()`
-- `dp_meta_summary()`
-- `dp_decode_scaled()`, `dp_decode_encoded()`
-- `dp_open_dataset_with_meta()`
-
-### Synapse REST
-
-- `syn_resolve_token()`, `syn_request()`
-- `syn_resolve_entity_by_path()`
-- `syn_ensure_folder_path()`, `syn_create_folder()`
-- `syn_upload_file_path()`, `syn_download_file_path()`
-- `syn_get_annotations()`, `syn_set_annotations()`
-
-### Utilities
-
-- `unit()`
-- `s3_list_objects()`
-- `require_ram()`
-- `env_start()`
-
-## License
-
-License: MIT + file LICENSE
