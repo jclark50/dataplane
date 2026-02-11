@@ -36,7 +36,7 @@ gp_geoparquet_build_geo_meta <- function(
     geometry_columns,
     primary_column = geometry_columns[1],
     encoding = "WKB",
-    # geometry_types = NULL,
+    geometry_types = NULL,
     crs = NULL,
     edges = c("planar", "spherical"),
     orientation = c(NULL, "counterclockwise"),

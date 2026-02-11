@@ -3,12 +3,12 @@
 # dataplane v2 — Parquet + Dataset metadata + Scaling (public-friendly)
 # =============================================================================
 # Public API (exported)
-# - dp_spec() [alias], spec_default(), set_units(), set_scale()
-# - tag_units(), check_units()
-# - scale_encode(), scale_decode()
-# - read_parquet_meta(), write_parquet(), read_parquet()
-# - write_dataset_meta(), read_dataset_meta(), write_dataset(), open_dataset()
-# - detect(), print_detect()
+# - dp_spec() [alias], dp_spec_default(), dp_set_units(), dp_set_scale()
+# - dp_tag_units(), dp_check_units()
+# - dp_scale_encode(), dp_scale_decode()
+# - dp_read_meta(), dp_write(), dp_read()
+# - dp_write_dataset_meta(), dp_read_dataset_meta(), dp_write_dataset(), dp_open()
+# - dp_detect(), dp_print_detect()
 #
 # Notes
 # - Internal helpers are prefixed as .dp_* (not exported).
@@ -100,13 +100,13 @@
   )
 }
 
-# Small helper to build dynamic kv pairs: kv_set(key1,val1,key2,val2,...)
-# (internal on purpose; you typically don't need this in user code)
-kv_set <- function(...) {
+# Small helper to build dynamic kv pairs: .dp_kv_set(key1,val1,key2,val2,...)
+# (internal; most users should not need this)
+.dp_kv_set <- function(...) {
   args <- list(...)
   if (!length(args)) return(list())
   if (length(args) %% 2 != 0) {
-    stop("kv_set(): must supply key1, value1, key2, value2, ...", call. = FALSE)
+    stop(".dp_kv_set(): must supply key1, value1, key2, value2, ...", call. = FALSE)
   }
   
   out <- list()
@@ -165,8 +165,8 @@ kv_set <- function(...) {
   ver <- (spec$version %||% "2")
   
   kv <- list()
-  kv[[keys$writer]]         <- "dataplane"
-  kv[[keys$written_at_utc]] <- format(Sys.time(), tz = "UTC", usetz = TRUE)
+  kv[[keys$writer]]          <- "dataplane"
+  kv[[keys$written_at_utc]]  <- format(Sys.time(), tz = "UTC", usetz = TRUE)
   kv[[keys$declared_system]] <- as.character(ds)[1]
   kv[[keys$spec_version]]    <- as.character(ver)[1]
   kv[[keys$spec_b64]]        <- .enc_obj(spec_fields)
@@ -231,7 +231,7 @@ kv_set <- function(...) {
 
 
 # =============================================================================
-# 2) Spec object (dp_spec): declared units + scaling intent (no column-name heuristics)
+# 2) Spec object (dp_spec): declared units + scaling intent
 # =============================================================================
 
 .dp_spec_new <- function(fields_dt, declared_system = c("metric", "imperial", "custom"), version = "2") {
@@ -271,8 +271,10 @@ kv_set <- function(...) {
   
   bad_enc <- setdiff(unique(fields_dt$encoding), c("none", "scaled_int"))
   if (length(bad_enc)) {
-    .dp_stop("Unsupported encoding value(s): %s. Allowed: 'none', 'scaled_int'.",
-             paste(bad_enc, collapse = ", "))
+    .dp_stop(
+      "Unsupported encoding value(s): %s. Allowed: 'none', 'scaled_int'.",
+      paste(bad_enc, collapse = ", ")
+    )
   }
   
   out <- list(fields = fields_dt, declared_system = declared_system, version = as.character(version))
@@ -280,29 +282,32 @@ kv_set <- function(...) {
   out
 }
 
+# -----------------------------------------------------------------------------
 #' Dataplane spec objects
 #'
-#' A **Dataplane spec** (`dp_spec`) describes the columns in a table:
-#' concepts (what a field represents), metric/imperial/declared units, and
-#' optional scaling intent (`writer_scale`) used for integer storage encoding.
+#' A `dp_spec` describes columns: concepts, unit systems, and optional scaling
+#' intent (`writer_scale`) used for integer storage encoding.
 #'
-#' You typically create a spec with [spec_default()] (or the alias [dp_spec()]),
-#' then edit it with [set_units()] and [set_scale()].
+#' The typical workflow:
+#' 1) Create a spec with [dp_spec_default()] (or [dp_spec()] as an alias)
+#' 2) Edit with [dp_set_units()] and/or [dp_set_scale()]
+#' 3) Use in I/O via [dp_write()] / [dp_read()] or for in-memory annotation via
+#'    [dp_tag_units()] / [dp_check_units()].
 #'
 #' @name dp_spec
-#' @keywords internal
+#' @rdname dp_spec
 NULL
 
+# -----------------------------------------------------------------------------
 #' Print a Dataplane spec
 #'
-#' Compact print method for `dp_spec` objects.
+#' Compact printer for `dp_spec` objects.
 #'
 #' @param x A `dp_spec`.
 #' @param ... Unused.
 #'
 #' @return The input `x` (invisibly).
-#' @method print dp_spec
-#' @export
+#' @exportS3Method print dp_spec
 print.dp_spec <- function(x, ...) {
   .dp_require("data.table")
   dt <- x$fields
@@ -407,11 +412,11 @@ print.dp_spec <- function(x, ...) {
 #' \dontrun{
 #' library(data.table)
 #' dt <- data.table(temp = 25.1, rh = 55)
-#' sp <- spec_default(dt, declared_system = "metric")
+#' sp <- dp_spec_default(dt, declared_system = "metric")
 #' sp
 #' sp$fields[]
 #' }
-spec_default <- function(x, declared_system = c("metric", "imperial"), include_unmatched = TRUE) {
+dp_spec_default <- function(x, declared_system = c("metric", "imperial"), include_unmatched = TRUE) {
   .dp_require("data.table")
   declared_system <- match.arg(declared_system)
   
@@ -450,15 +455,26 @@ spec_default <- function(x, declared_system = c("metric", "imperial"), include_u
   .dp_spec_new(out_dt, declared_system = declared_system, version = "2")
 }
 
+# -----------------------------------------------------------------------------
+#' Create a Dataplane spec (alias)
+#'
+#' Alias for [dp_spec_default()].
+#'
+#' @inheritParams dp_spec_default
+#' @return A `dp_spec` object.
+#' @export
+dp_spec <- function(x, declared_system = c("metric", "imperial"), include_unmatched = TRUE) {
+  dp_spec_default(x = x, declared_system = declared_system, include_unmatched = include_unmatched)
+}
 
 # -----------------------------------------------------------------------------
 #' Set units in a spec
 #'
 #' Updates unit fields within a `dp_spec` for one or more columns.
 #'
-#' **How this relates to `tag_units()`:**
-#' - `set_units()` modifies the *spec* (documentation of intended/expected units).
-#' - `tag_units()` uses a spec to attach unit attributes onto an *R data object*.
+#' Relationship to [dp_tag_units()]:
+#' - `dp_set_units()` updates the *spec* (the contract / documentation)
+#' - `dp_tag_units()` annotates an *in-memory R object* based on that spec
 #'
 #' @param spec A `dp_spec`.
 #' @param columns Character vector of column names to edit.
@@ -473,12 +489,12 @@ spec_default <- function(x, declared_system = c("metric", "imperial"), include_u
 #' \dontrun{
 #' library(data.table)
 #' dt <- data.table(wind = 2.1)
-#' sp <- spec_default(dt, "metric")
-#' sp <- set_units(sp, "wind", metric_units = "m/s", imperial_units = "mph")
+#' sp <- dp_spec_default(dt, "metric")
+#' sp <- dp_set_units(sp, "wind", metric_units = "m/s", imperial_units = "mph")
 #' }
-set_units <- function(spec, columns, metric_units = NULL, imperial_units = NULL, declared_units = NULL) {
+dp_set_units <- function(spec, columns, metric_units = NULL, imperial_units = NULL, declared_units = NULL) {
   .dp_require("data.table")
-  if (!inherits(spec, "dp_spec")) .dp_stop("set_units(): `spec` must be a <dp_spec>.")
+  if (!inherits(spec, "dp_spec")) .dp_stop("dp_set_units(): `spec` must be a <dp_spec>.")
   dt <- data.table::copy(spec$fields)
   
   stopifnot(is.character(columns), length(columns) >= 1L)
@@ -486,15 +502,15 @@ set_units <- function(spec, columns, metric_units = NULL, imperial_units = NULL,
   dt[, .hit := column_norm %in% hit]
   
   if (!is.null(metric_units)) {
-    if (!.dp_is_scalar_chr(metric_units)) .dp_stop("set_units(): metric_units must be a character scalar.")
+    if (!.dp_is_scalar_chr(metric_units)) .dp_stop("dp_set_units(): metric_units must be a character scalar.")
     dt[.hit == TRUE, metric_units := metric_units]
   }
   if (!is.null(imperial_units)) {
-    if (!.dp_is_scalar_chr(imperial_units)) .dp_stop("set_units(): imperial_units must be a character scalar.")
+    if (!.dp_is_scalar_chr(imperial_units)) .dp_stop("dp_set_units(): imperial_units must be a character scalar.")
     dt[.hit == TRUE, imperial_units := imperial_units]
   }
   if (!is.null(declared_units)) {
-    if (!.dp_is_scalar_chr(declared_units)) .dp_stop("set_units(): declared_units must be a character scalar.")
+    if (!.dp_is_scalar_chr(declared_units)) .dp_stop("dp_set_units(): declared_units must be a character scalar.")
     dt[.hit == TRUE, declared_units := declared_units]
   }
   
@@ -506,11 +522,10 @@ set_units <- function(spec, columns, metric_units = NULL, imperial_units = NULL,
 # -----------------------------------------------------------------------------
 #' Set scaling intent in a spec
 #'
-#' Sets `writer_scale` for selected columns in a `dp_spec`. This does **not**
-#' change your data by itself; it records the intent:
+#' Sets `writer_scale` for selected columns in a `dp_spec`.
 #'
-#' - when scaling is enabled at write time (`write_parquet(..., scale = TRUE)`),
-#'   numeric values are multiplied by `writer_scale` and stored as integers.
+#' This does not change your data by itself; it records the intent used by
+#' [dp_scale_encode()] and by [dp_write(..., scale = TRUE)].
 #'
 #' @param spec A `dp_spec`.
 #' @param columns Character vector of column names to edit.
@@ -523,13 +538,13 @@ set_units <- function(spec, columns, metric_units = NULL, imperial_units = NULL,
 #' \dontrun{
 #' library(data.table)
 #' dt <- data.table(temp = 25.12)
-#' sp <- spec_default(dt, "metric")
-#' sp <- set_scale(sp, "temp", 100)  # keep 2 decimals as integer storage
+#' sp <- dp_spec_default(dt, "metric")
+#' sp <- dp_set_scale(sp, "temp", 100)  # keep 2 decimals as integer storage
 #' }
-set_scale <- function(spec, columns, writer_scale) {
+dp_set_scale <- function(spec, columns, writer_scale) {
   .dp_require("data.table")
-  if (!inherits(spec, "dp_spec")) .dp_stop("set_scale(): `spec` must be a <dp_spec>.")
-  if (length(writer_scale) != 1L) .dp_stop("set_scale(): writer_scale must be a scalar numeric (or NA).")
+  if (!inherits(spec, "dp_spec")) .dp_stop("dp_set_scale(): `spec` must be a <dp_spec>.")
+  if (length(writer_scale) != 1L) .dp_stop("dp_set_scale(): writer_scale must be a scalar numeric (or NA).")
   
   dt <- data.table::copy(spec$fields)
   hit <- .dp_norm_name(columns)
@@ -584,13 +599,9 @@ set_scale <- function(spec, columns, writer_scale) {
 #' Attaches units as an attribute (default attribute name: `"units"`) onto
 #' columns of an R table, based on a `dp_spec`.
 #'
-#' This is intentionally **lightweight** and **R-native**:
-#' - it modifies *only* the in-memory R object (no file I/O)
-#' - it is meant to reduce accidental unit confusion during analysis
-#'
-#' **How this differs from `set_units()`:**
-#' - `set_units()` edits the *spec* (the documentation/contract).
-#' - `tag_units()` uses that spec to annotate a *data object* with attributes.
+#' Intended use:
+#' - in-memory annotation to reduce accidental unit confusion during analysis
+#' - no file I/O
 #'
 #' @param dt A `data.frame` or `data.table`.
 #' @param spec A `dp_spec` with a `fields` table.
@@ -609,11 +620,11 @@ set_scale <- function(spec, columns, writer_scale) {
 #' \dontrun{
 #' library(data.table)
 #' dt <- data.table(temp = 25.1)
-#' sp <- spec_default(dt, "metric")
-#' res <- tag_units(dt, sp)
+#' sp <- dp_spec_default(dt, "metric")
+#' res <- dp_tag_units(dt, sp)
 #' attr(res$dt$temp, "units")
 #' }
-tag_units <- function(
+dp_tag_units <- function(
     dt,
     spec,
     only_missing = TRUE,
@@ -624,11 +635,11 @@ tag_units <- function(
   dt0 <- .dp_dt(dt)
   
   if (!inherits(spec, "dp_spec") || is.null(spec$fields) || !data.table::is.data.table(spec$fields)) {
-    .dp_stop("tag_units(): `spec` must be a <dp_spec> with data.table `spec$fields`.")
+    .dp_stop("dp_tag_units(): `spec` must be a <dp_spec> with data.table `spec$fields`.")
   }
   
   f <- data.table::copy(spec$fields)
-  if (!("column" %in% names(f))) .dp_stop("tag_units(): `spec$fields` must include `column`.")
+  if (!("column" %in% names(f))) .dp_stop("dp_tag_units(): `spec$fields` must include `column`.")
   
   system <- match.arg(system)
   declared_system <- tryCatch(spec$declared_system, error = function(e) NULL)
@@ -673,7 +684,7 @@ tag_units <- function(
 #' Check unit attributes against a spec
 #'
 #' Compares unit attributes in a table (default attribute name `"units"`) against
-#' expected units from a `dp_spec`. By default, it **warns** and returns a report.
+#' expected units from a `dp_spec`. By default, this warns and returns a report.
 #'
 #' @param dt A `data.frame` or `data.table`.
 #' @param spec A `dp_spec` with a `fields` table.
@@ -691,11 +702,11 @@ tag_units <- function(
 #' \dontrun{
 #' library(data.table)
 #' dt <- data.table(temp = 25.1)
-#' sp <- spec_default(dt, "metric")
-#' dt2 <- tag_units(dt, sp)$dt
-#' check_units(dt2, sp)
+#' sp <- dp_spec_default(dt, "metric")
+#' dt2 <- dp_tag_units(dt, sp)$dt
+#' dp_check_units(dt2, sp)
 #' }
-check_units <- function(
+dp_check_units <- function(
     dt,
     spec,
     system = c("declared", "metric", "imperial"),
@@ -707,11 +718,11 @@ check_units <- function(
   dt0 <- .dp_dt(dt)
   
   if (!inherits(spec, "dp_spec") || is.null(spec$fields) || !data.table::is.data.table(spec$fields)) {
-    .dp_stop("check_units(): `spec` must be a <dp_spec> with data.table `spec$fields`.")
+    .dp_stop("dp_check_units(): `spec` must be a <dp_spec> with data.table `spec$fields`.")
   }
   
   f <- data.table::copy(spec$fields)
-  if (!("column" %in% names(f))) .dp_stop("check_units(): `spec$fields` must include `column`.")
+  if (!("column" %in% names(f))) .dp_stop("dp_check_units(): `spec$fields` must include `column`.")
   
   system <- match.arg(system)
   declared_system <- tryCatch(spec$declared_system, error = function(e) NULL)
@@ -752,7 +763,7 @@ check_units <- function(
       show <- probs[seq_len(min(n_show, nrow(probs)))]
       warning(
         paste0(
-          "check_units(): found unit/schema issues (showing ", nrow(show), " of ", nrow(probs), "):\n",
+          "dp_check_units(): found unit/schema issues (showing ", nrow(show), " of ", nrow(probs), "):\n",
           paste0(
             "  - ", show$column, ": ", show$status,
             ifelse(!is.na(show$expected_units), paste0(" | expected=", show$expected_units), ""),
@@ -764,7 +775,7 @@ check_units <- function(
       )
     }
     if (isTRUE(stop_on_any)) {
-      .dp_stop("check_units(): validation failed (stop_on_any=TRUE).")
+      .dp_stop("dp_check_units(): validation failed (stop_on_any=TRUE).")
     }
   }
   
@@ -782,8 +793,9 @@ check_units <- function(
 #' Creates new integer storage columns (default suffix `"_i"`) by multiplying
 #' numeric columns by their `writer_scale` in the spec.
 #'
-#' This is useful when you want a compact, stable storage type (integers) while
-#' retaining predictable decimal precision.
+#' Intended use:
+#' - stable, compact integer storage while retaining predictable decimal precision
+#' - consistent round-trip with [dp_scale_decode()]
 #'
 #' @param dt A `data.frame` or `data.table`.
 #' @param spec A `dp_spec` describing scaling intent (`writer_scale`).
@@ -800,12 +812,12 @@ check_units <- function(
 #' \dontrun{
 #' library(data.table)
 #' dt <- data.table(temp = c(25.12, 25.44))
-#' sp <- spec_default(dt, "metric")
-#' sp <- set_scale(sp, "temp", 100)
-#' enc <- scale_encode(dt, sp)
+#' sp <- dp_spec_default(dt, "metric")
+#' sp <- dp_set_scale(sp, "temp", 100)
+#' enc <- dp_scale_encode(dt, sp)
 #' enc$dt
 #' }
-scale_encode <- function(
+dp_scale_encode <- function(
     dt,
     spec,
     suffix = "_i",
@@ -816,7 +828,7 @@ scale_encode <- function(
   dt <- data.table::copy(.dp_dt(dt))
   round_fn <- match.arg(round_fn)
   
-  if (!inherits(spec, "dp_spec")) .dp_stop("scale_encode(): `spec` must be a <dp_spec>.")
+  if (!inherits(spec, "dp_spec")) .dp_stop("dp_scale_encode(): `spec` must be a <dp_spec>.")
   spec <- .dp_spec_resolve_declared_units(spec)
   s <- spec$fields
   
@@ -866,11 +878,14 @@ scale_encode <- function(
 }
 
 # -----------------------------------------------------------------------------
-#' Decode scaled integer columns back to floats (using audit metadata)
+#' Decode scaled integer columns back to numeric columns (using audit metadata)
 #'
-#' If your writer created columns like `temp_i` with `writer_scale = 100`,
-#' this recreates `temp = temp_i / 100`. Optionally keeps or drops the
-#' integer storage columns.
+#' If a writer created columns like `temp_i` with `writer_scale = 100`, this can
+#' recreate `temp = temp_i / 100`. Optionally keeps or drops the integer storage
+#' columns.
+#'
+#' `audit_dt` is typically obtained from metadata via [dp_read_meta()] or from
+#' the `meta` element returned by [dp_read()].
 #'
 #' @param dt A `data.frame` or `data.table`.
 #' @param audit_dt Parsed audit/plan table. Must contain:
@@ -886,9 +901,9 @@ scale_encode <- function(
 #' library(data.table)
 #' dt <- data.table(temp_i = c(2512L, 2544L))
 #' audit <- data.table(column="temp", writer_scale=100, storage_column="temp_i", did_scale=TRUE)
-#' scale_decode(dt, audit)
+#' dp_scale_decode(dt, audit)
 #' }
-scale_decode <- function(dt, audit_dt, keep_storage = TRUE, overwrite = FALSE) {
+dp_scale_decode <- function(dt, audit_dt, keep_storage = TRUE, overwrite = FALSE) {
   .dp_require("data.table")
   dt <- data.table::copy(.dp_dt(dt))
   audit_dt <- .dp_dt(audit_dt)
@@ -896,8 +911,12 @@ scale_decode <- function(dt, audit_dt, keep_storage = TRUE, overwrite = FALSE) {
   need <- c("column", "writer_scale", "storage_column", "did_scale")
   if (!all(need %in% names(audit_dt))) return(dt)
   
+  # NOTE: do not use isTRUE() on a vector column; filter explicitly.
+  did_scale_flag <- audit_dt[["did_scale"]]
+  if (!is.logical(did_scale_flag)) did_scale_flag <- as.logical(did_scale_flag)
+  
   plan <- audit_dt[
-    isTRUE(did_scale) &
+    (did_scale_flag %in% TRUE) &
       is.finite(writer_scale) & writer_scale != 0 &
       !is.na(storage_column) & nzchar(storage_column)
   ]
@@ -940,7 +959,7 @@ scale_decode <- function(dt, audit_dt, keep_storage = TRUE, overwrite = FALSE) {
       kv2 <- md$key_value_metadata
       if (is.null(kv2)) return(list())
       kv2 <- as.data.frame(kv2, stringsAsFactors = FALSE)
-      if (!all(c("key","value") %in% names(kv2))) return(list())
+      if (!all(c("key", "value") %in% names(kv2))) return(list())
       out <- as.list(kv2$value)
       names(out) <- kv2$key
       out
@@ -986,10 +1005,10 @@ scale_decode <- function(dt, audit_dt, keep_storage = TRUE, overwrite = FALSE) {
 #'
 #' @examples
 #' \dontrun{
-#' m <- read_parquet_meta("file.parquet")
+#' m <- dp_read_meta("file.parquet")
 #' names(m$kv)
 #' }
-read_parquet_meta <- function(path, parse = TRUE, preferred_prefix = "dp", legacy_prefixes = c("klimo")) {
+dp_read_meta <- function(path, parse = TRUE, preferred_prefix = "dp", legacy_prefixes = c("klimo")) {
   kv <- .dp_read_parquet_kv(path)
   .dp_meta_unpack_kv(kv, preferred_prefix = preferred_prefix, legacy_prefixes = legacy_prefixes, parse = parse)
 }
@@ -1021,9 +1040,9 @@ read_parquet_meta <- function(path, parse = TRUE, preferred_prefix = "dp", legac
 #' @examples
 #' \dontrun{
 #' kv <- list("dp:writer"="example")
-#' write_dataset_meta("dataset_dir", kv)
+#' dp_write_dataset_meta("dataset_dir", kv)
 #' }
-write_dataset_meta <- function(dataset_path, kv, prefix = "dp", overwrite = TRUE, compression = "zstd", sidecar_name = NULL) {
+dp_write_dataset_meta <- function(dataset_path, kv, prefix = "dp", overwrite = TRUE, compression = "zstd", sidecar_name = NULL) {
   .dp_require("arrow")
   .dp_require("data.table")
   
@@ -1033,15 +1052,15 @@ write_dataset_meta <- function(dataset_path, kv, prefix = "dp", overwrite = TRUE
   sidecar_path <- file.path(dataset_path, sidecar_name)
   
   if (file.exists(sidecar_path) && !isTRUE(overwrite)) {
-    .dp_stop("write_dataset_meta(): sidecar exists and overwrite=FALSE: %s", sidecar_path)
+    .dp_stop("dp_write_dataset_meta(): sidecar exists and overwrite=FALSE: %s", sidecar_path)
   }
   
   # Minimal payload; metadata is the important part
   meta_dt <- data.table::data.table(dp_meta = 1L)
   tab <- arrow::as_arrow_table(meta_dt)
   
-  if (!is.list(kv)) .dp_stop("write_dataset_meta(): `kv` must be a named list.")
-  if (!length(names(kv) %||% character())) .dp_stop("write_dataset_meta(): `kv` must be a named list (has no names).")
+  if (!is.list(kv)) .dp_stop("dp_write_dataset_meta(): `kv` must be a named list.")
+  if (!length(names(kv) %||% character())) .dp_stop("dp_write_dataset_meta(): `kv` must be a named list (has no names).")
   
   if (!is.null(tab$ReplaceSchemaMetadata) && is.function(tab$ReplaceSchemaMetadata)) {
     tab <- tab$ReplaceSchemaMetadata(kv)
@@ -1065,9 +1084,9 @@ write_dataset_meta <- function(dataset_path, kv, prefix = "dp", overwrite = TRUE
 #' @param legacy_prefixes Optional legacy prefixes (default `"klimo"`).
 #' @param sidecar_names Optional vector of sidecar names to look for.
 #'
-#' @return Same structure as [read_parquet_meta()], plus `sidecar_path`.
+#' @return Same structure as [dp_read_meta()], plus `sidecar_path`.
 #' @export
-read_dataset_meta <- function(dataset_path, parse = TRUE, preferred_prefix = "dp", legacy_prefixes = c("klimo"), sidecar_names = NULL) {
+dp_read_dataset_meta <- function(dataset_path, parse = TRUE, preferred_prefix = "dp", legacy_prefixes = c("klimo"), sidecar_names = NULL) {
   .dp_require("arrow")
   
   if (is.null(sidecar_names)) {
@@ -1094,7 +1113,7 @@ read_dataset_meta <- function(dataset_path, parse = TRUE, preferred_prefix = "dp
     return(out)
   }
   
-  meta <- read_parquet_meta(
+  meta <- dp_read_meta(
     path = candidates[1],
     parse = parse,
     preferred_prefix = preferred_prefix,
@@ -1106,32 +1125,32 @@ read_dataset_meta <- function(dataset_path, parse = TRUE, preferred_prefix = "dp
 
 
 # =============================================================================
-# 7) Public I/O: write_parquet() / read_parquet()
+# 7) Public I/O: dp_write() / dp_read()
 # =============================================================================
 
 # -----------------------------------------------------------------------------
 #' Write a Parquet file with Dataplane metadata
 #'
 #' Writes `x` to a Parquet file and embeds Dataplane metadata in Parquet schema
-#' key/value pairs. Optionally:
-#' - tags unit attributes before writing
-#' - validates unit attributes against a spec
-#' - encodes selected numeric columns into integer storage columns
+#' key/value pairs. Optional behaviors:
+#' - tag missing unit attributes before writing (in-memory)
+#' - validate unit attributes against a spec (warning by default)
+#' - encode selected numeric columns into integer storage columns
 #'
 #' @param x A `data.frame` or `data.table`.
 #' @param path Output `.parquet` file path.
 #' @param spec Either a `dp_spec` or one of `"metric"`, `"imperial"` (in which case a
 #'   default spec is generated from column names).
-#' @param mode `"document"` or `"validate"`. If `"validate"`, runs [check_units()]
-#'   (warns by default) before writing.
-#' @param scale Logical. If `TRUE`, apply [scale_encode()] at write time.
+#' @param mode `"document"` or `"validate"`. If `"validate"`, runs [dp_check_units()]
+#'   before writing (warns by default).
+#' @param scale Logical. If `TRUE`, apply [dp_scale_encode()] at write time.
 #' @param suffix Suffix for storage columns (default `"_i"`).
 #' @param drop_original Logical. If `TRUE` and `scale=TRUE`, drop base columns after encoding.
-#' @param tag_missing_units Logical. If `TRUE`, apply [tag_units()] before writing.
+#' @param tag_missing_units Logical. If `TRUE`, apply [dp_tag_units()] before writing.
 #' @param prefix Metadata key prefix (default `"dp"`).
 #' @param compression Parquet compression (default `"zstd"`).
 #' @param unit_attr Unit attribute name to use (default `"units"`).
-#' @param warn_max Passed to [check_units()].
+#' @param warn_max Passed to [dp_check_units()].
 #' @param ... Passed to [arrow::write_parquet()].
 #'
 #' @return Invisibly returns a list containing `path`, `spec`, `audit`, and `kv`.
@@ -1141,14 +1160,14 @@ read_dataset_meta <- function(dataset_path, parse = TRUE, preferred_prefix = "dp
 #' \dontrun{
 #' library(data.table)
 #' dt <- data.table(temp = c(25.12, 25.44), rh = c(55, 52))
-#' sp <- spec_default(dt, "metric")
-#' sp <- set_scale(sp, "temp", 100)
+#' sp <- dp_spec_default(dt, "metric")
+#' sp <- dp_set_scale(sp, "temp", 100)
 #' out <- tempfile(fileext = ".parquet")
-#' write_parquet(dt, out, spec = sp, scale = TRUE)
-#' res <- read_parquet(out, attach_units = "declared")
+#' dp_write(dt, out, spec = sp, scale = TRUE)
+#' res <- dp_read(out, attach_units = "declared")
 #' res$dt
 #' }
-write_parquet <- function(
+dp_write <- function(
     x,
     path,
     spec = c("metric", "imperial"),
@@ -1171,7 +1190,7 @@ write_parquet <- function(
   dt <- if (data.table::is.data.table(x)) data.table::copy(x) else data.table::as.data.table(x)
   
   if (!is.character(path) || length(path) != 1L || !nzchar(path)) {
-    .dp_stop("write_parquet(): `path` must be a non-empty file path.")
+    .dp_stop("dp_write(): `path` must be a non-empty file path.")
   }
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   
@@ -1180,31 +1199,31 @@ write_parquet <- function(
     spec
   } else {
     spec <- match.arg(spec)
-    spec_default(dt, declared_system = spec, include_unmatched = TRUE)
+    dp_spec_default(dt, declared_system = spec, include_unmatched = TRUE)
   }
   sp <- .dp_spec_resolve_declared_units(sp)
   
   # ---- optional unit tagging ----
   did_tag <- NULL
   if (isTRUE(tag_missing_units)) {
-    tag <- tag_units(dt, sp, only_missing = TRUE, system = "declared", unit_attr = unit_attr)
+    tag <- dp_tag_units(dt, sp, only_missing = TRUE, system = "declared", unit_attr = unit_attr)
     dt <- tag$dt
     did_tag <- tag$did_tag
   }
   
   # ---- optional validation ----
   if (identical(mode, "validate")) {
-    check_units(dt, sp, system = "declared", unit_attr = unit_attr, warn_max = as.integer(warn_max), stop_on_any = FALSE)
+    dp_check_units(dt, sp, system = "declared", unit_attr = unit_attr, warn_max = as.integer(warn_max), stop_on_any = FALSE)
   }
   
   # ---- optional scaling ----
   enc <- NULL
   if (isTRUE(scale)) {
-    enc <- scale_encode(dt, sp, suffix = suffix, drop_original = isTRUE(drop_original), round_fn = "round")
+    enc <- dp_scale_encode(dt, sp, suffix = suffix, drop_original = isTRUE(drop_original), round_fn = "round")
     dt <- enc$dt
   }
   
-  # ---- build audit (lightweight, useful on read/decode) ----
+  # ---- build audit (useful for read/decode) ----
   f <- data.table::copy(sp$fields)
   for (nm in c("concept","declared_units","metric_units","imperial_units","writer_scale",
                "encoding","encoding_scale","encoding_base_units")) {
@@ -1245,13 +1264,11 @@ write_parquet <- function(
   }
   
   if (!is.null(did_tag) && nrow(did_tag)) {
-    # observed_units: what was present before tagging
     audit[did_tag, `:=`(
       did_tag = i.did_tag,
       observed_units = i.previous_units
     ), on = .(column)]
   } else {
-    # still record observed units (for a quick glance)
     dt_cols <- names(dt)
     obs <- vapply(dt_cols, function(nm) .dp_unit_attr_get(dt[[nm]], unit_attr = unit_attr), character(1))
     audit[match(dt_cols, audit$column), observed_units := obs]
@@ -1259,9 +1276,9 @@ write_parquet <- function(
   
   # ---- metadata kv ----
   keys <- .dp_meta_keys(prefix)
-  extra <- kv_set(
-    keys$writer,      "write_parquet",
-    keys$compression, as.character(compression)[1],
+  extra <- .dp_kv_set(
+    keys$writer,       "dp_write",
+    keys$compression,  as.character(compression)[1],
     keys$write_format, "parquet"
   )
   kv <- .dp_meta_pack_kv(spec = sp, audit_dt = audit, extra = extra, prefix = prefix)
@@ -1283,9 +1300,9 @@ write_parquet <- function(
 #' Read a Parquet file written with Dataplane metadata
 #'
 #' Reads a Parquet file and returns both the data and parsed Dataplane metadata.
-#' Optionally:
-#' - decodes scaled integer storage columns back to numeric columns
-#' - attaches declared unit attributes using the stored spec
+#' Optional behaviors:
+#' - decode scaled integer storage columns back to numeric columns
+#' - attach declared unit attributes using the stored spec
 #'
 #' @param path Path to a Parquet file.
 #' @param decode_scaled Logical. If `TRUE`, decode scaled columns using the audit table.
@@ -1299,9 +1316,9 @@ write_parquet <- function(
 #'
 #' @return A list with:
 #' - `dt`: a `data.table`
-#' - `meta`: parsed metadata from [read_parquet_meta()]
+#' - `meta`: parsed metadata from [dp_read_meta()]
 #' @export
-read_parquet <- function(
+dp_read <- function(
     path,
     decode_scaled = TRUE,
     keep_storage = TRUE,
@@ -1316,7 +1333,7 @@ read_parquet <- function(
   
   attach_units <- match.arg(attach_units)
   
-  meta <- read_parquet_meta(
+  meta <- dp_read_meta(
     path = path,
     parse = TRUE,
     preferred_prefix = preferred_prefix,
@@ -1327,7 +1344,7 @@ read_parquet <- function(
   dt <- .dp_dt(dt)
   
   if (isTRUE(decode_scaled) && !is.null(meta$audit_dt) && nrow(meta$audit_dt)) {
-    dt <- scale_decode(dt, meta$audit_dt, keep_storage = isTRUE(keep_storage), overwrite = FALSE)
+    dt <- dp_scale_decode(dt, meta$audit_dt, keep_storage = isTRUE(keep_storage), overwrite = FALSE)
   }
   
   if (attach_units == "declared" && !is.null(meta$spec_dt) && nrow(meta$spec_dt)) {
@@ -1341,7 +1358,7 @@ read_parquet <- function(
     )
     sp <- .dp_spec_resolve_declared_units(sp)
     
-    dt <- tag_units(dt, sp, only_missing = TRUE, system = "declared", unit_attr = unit_attr)$dt
+    dt <- dp_tag_units(dt, sp, only_missing = TRUE, system = "declared", unit_attr = unit_attr)$dt
   }
   
   list(dt = dt, meta = meta)
@@ -1349,7 +1366,7 @@ read_parquet <- function(
 
 
 # =============================================================================
-# 8) Public I/O: open_dataset() / write_dataset()
+# 8) Public I/O: dp_open() / dp_write_dataset()
 # =============================================================================
 
 .dp_dataset_factory_options <- function(ignore_prefixes = c("_dp_", "_klimo_"), exclude_invalid_files = TRUE) {
@@ -1387,7 +1404,7 @@ read_parquet <- function(
 #' - `ds`: Arrow Dataset
 #' - `meta`: parsed sidecar metadata
 #' @export
-open_dataset <- function(
+dp_open <- function(
     path,
     metadata = c("sidecar", "none"),
     ignore_prefixes = c("_dp_", "_klimo_"),
@@ -1410,7 +1427,7 @@ open_dataset <- function(
   
   if (metadata == "none") return(ds)
   
-  meta <- read_dataset_meta(
+  meta <- dp_read_dataset_meta(
     dataset_path = path,
     parse = TRUE,
     preferred_prefix = preferred_prefix,
@@ -1426,9 +1443,9 @@ open_dataset <- function(
 #' Writes an Arrow Dataset (directory of Parquet files) and writes a Dataplane
 #' sidecar metadata Parquet file (default: `dp_meta.parquet`).
 #'
-#' Important: `scale_document=TRUE` **documents** intended storage columns (based on `writer_scale`)
-#' but does not transform the dataset data. For actual scaling, use [write_parquet()] per-file
-#' or pre-transform your table before dataset writing.
+#' Important: `scale_document=TRUE` documents intended storage columns (based on
+#' `writer_scale`) but does not transform the dataset data. For actual scaling,
+#' use [dp_write()] per-file or pre-transform the table before dataset writing.
 #'
 #' @param x An Arrow Table, RecordBatchReader, Dataset, or object acceptable to [arrow::write_dataset()].
 #' @param path Dataset directory path.
@@ -1445,7 +1462,7 @@ open_dataset <- function(
 #'
 #' @return Invisibly returns a list including dataset path and sidecar path.
 #' @export
-write_dataset <- function(
+dp_write_dataset <- function(
     x,
     path,
     spec = c("metric", "imperial"),
@@ -1488,7 +1505,7 @@ write_dataset <- function(
   }
   
   if (is.null(cols) || !length(cols)) {
-    .dp_stop("write_dataset(): could not determine schema column names without collecting.")
+    .dp_stop("dp_write_dataset(): could not determine schema column names without collecting.")
   }
   
   proxy <- data.table::data.table()
@@ -1499,7 +1516,7 @@ write_dataset <- function(
     spec
   } else {
     spec <- match.arg(spec)
-    spec_default(proxy, declared_system = spec, include_unmatched = TRUE)
+    dp_spec_default(proxy, declared_system = spec, include_unmatched = TRUE)
   }
   sp <- .dp_spec_resolve_declared_units(sp)
   
@@ -1542,7 +1559,7 @@ write_dataset <- function(
   # ---- 4) Write dataset itself ----
   fmt <- tolower(as.character(write_format)[1])
   if (!fmt %in% c("parquet")) {
-    .dp_stop("write_dataset(): unsupported write_format='%s' (only 'parquet').", fmt)
+    .dp_stop("dp_write_dataset(): unsupported write_format='%s' (only 'parquet').", fmt)
   }
   
   write_args <- list(
@@ -1559,17 +1576,17 @@ write_dataset <- function(
   # ---- 5) Write sidecar meta parquet (schema metadata) ----
   keys <- .dp_meta_keys(prefix)
   
-  extra <- kv_set(
-    keys$writer,                "write_dataset",
-    keys$sidecar_compression,   as.character(sidecar_compression)[1],
-    keys$write_format,          as.character(write_format)[1],
-    keys$partitioning,          if (is.null(partitioning)) NA_character_ else paste(partitioning, collapse = ","),
+  extra <- .dp_kv_set(
+    keys$writer,                 "dp_write_dataset",
+    keys$sidecar_compression,    as.character(sidecar_compression)[1],
+    keys$write_format,           as.character(write_format)[1],
+    keys$partitioning,           if (is.null(partitioning)) NA_character_ else paste(partitioning, collapse = ","),
     keys$existing_data_behavior, if (is.null(existing_data_behavior)) NA_character_ else as.character(existing_data_behavior)[1]
   )
   
   kv <- .dp_meta_pack_kv(spec = sp, audit_dt = audit, extra = extra, prefix = prefix)
   
-  write_dataset_meta(
+  dp_write_dataset_meta(
     dataset_path = path,
     kv = kv,
     prefix = prefix,
@@ -1733,7 +1750,8 @@ write_dataset <- function(
   
   # 2) Else sample parquet files
   files <- list.files(dir, pattern = "\\.parquet$", full.names = TRUE, recursive = isTRUE(recursive))
-  files <- files[file.info(files)$isdir %||% rep(FALSE, length(files)) == FALSE]
+  finfo <- file.info(files)
+  if (!is.null(finfo$isdir)) files <- files[!isTRUE(finfo$isdir)]
   
   if (!length(files)) {
     return(list(
@@ -1800,10 +1818,10 @@ write_dataset <- function(
 #'
 #' @examples
 #' \dontrun{
-#' detect("file.parquet")
-#' detect("dataset_dir")
+#' dp_detect("file.parquet")
+#' dp_detect("dataset_dir")
 #' }
-detect <- function(
+dp_detect <- function(
     path,
     preferred_prefix = "dp",
     legacy_prefixes = c("klimo"),
@@ -1839,13 +1857,13 @@ detect <- function(
 # -----------------------------------------------------------------------------
 #' Print a Dataplane detection result
 #'
-#' Convenience printer for objects returned by [detect()].
+#' Convenience printer for objects returned by [dp_detect()].
 #'
-#' @param x Detection result list from [detect()].
+#' @param x Detection result list from [dp_detect()].
 #'
 #' @return The input `x` (invisibly).
 #' @export
-print_detect <- function(x) {
+dp_print_detect <- function(x) {
   cat("\n")
   cat("dataplane detection\n")
   cat("-------------------\n")
