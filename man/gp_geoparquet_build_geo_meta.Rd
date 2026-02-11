@@ -8,6 +8,7 @@ gp_geoparquet_build_geo_meta(
   geometry_columns,
   primary_column = geometry_columns[1],
   encoding = "WKB",
+  geometry_types = NULL,
   crs = NULL,
   edges = c("planar", "spherical"),
   orientation = c(NULL, "counterclockwise"),
@@ -24,6 +25,10 @@ gp_geoparquet_build_geo_meta(
 
 \item{encoding}{Geometry encoding (default `"WKB"`).}
 
+\item{geometry_types}{Optional geometry type(s). May be:
+- a character vector applied to all geometry columns, or
+- a named list keyed by geometry column.}
+
 \item{crs}{CRS as PROJJSON (list) or a string convertible via `sf::st_crs()`.}
 
 \item{edges}{`"planar"` or `"spherical"`.}
@@ -37,10 +42,6 @@ gp_geoparquet_build_geo_meta(
 \item{version}{GeoParquet metadata version (default `"1.1.0"`).}
 
 \item{extra}{Optional additional fields to include in the metadata list.}
-
-\item{geometry_types}{Optional geometry type(s). May be:
-- a character vector applied to all geometry columns, or
-- a named list keyed by geometry column.}
 }
 \value{
 A nested list suitable for JSON serialization via [gp_geoparquet_geo_json()].

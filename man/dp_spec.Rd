@@ -3,13 +3,31 @@
 \name{dp_spec}
 \alias{dp_spec}
 \title{Dataplane spec objects}
+\usage{
+dp_spec(x, declared_system = c("metric", "imperial"), include_unmatched = TRUE)
+}
+\arguments{
+\item{x}{A `data.frame` or `data.table` (only column names are used).}
+
+\item{declared_system}{Character scalar: `"metric"` or `"imperial"`. This
+controls how `declared_units` are inferred when not explicitly set.}
+
+\item{include_unmatched}{Logical. If `TRUE` (default), keep all columns even if
+no concept match is found. If `FALSE`, only keep matched columns.}
+}
+\value{
+A `dp_spec` object.
+}
 \description{
-A **Dataplane spec** (`dp_spec`) describes the columns in a table:
-concepts (what a field represents), metric/imperial/declared units, and
-optional scaling intent (`writer_scale`) used for integer storage encoding.
+A `dp_spec` describes columns: concepts, unit systems, and optional scaling
+intent (`writer_scale`) used for integer storage encoding.
+
+Alias for [dp_spec_default()].
 }
 \details{
-You typically create a spec with [spec_default()] (or the alias [dp_spec()]),
-then edit it with [set_units()] and [set_scale()].
+The typical workflow:
+1) Create a spec with [dp_spec_default()] (or [dp_spec()] as an alias)
+2) Edit with [dp_set_units()] and/or [dp_set_scale()]
+3) Use in I/O via [dp_write()] / [dp_read()] or for in-memory annotation via
+   [dp_tag_units()] / [dp_check_units()].
 }
-\keyword{internal}
