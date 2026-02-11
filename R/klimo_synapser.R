@@ -1172,6 +1172,7 @@ syn_set_annotations <- function(entity_id, annotations, token = NULL, verbose = 
 #' @param token Optional token (PAT).
 #' @param verbose Logical.
 #' @param dry_run Logical.
+#' @param min_interval_s Brief period in seconds to pause if using function in a loop uploading multiple times, otherwise will run into issues.
 #' @return `"syn_upload_result"` (see [syn_upload_file()]).
 #' @export
 #' @examples
@@ -1196,7 +1197,9 @@ syn_upload_file_path <- function(local_path,
                                  annotations = NULL,
                                  token = NULL,
                                  verbose = FALSE,
-                                 dry_run = FALSE) {
+                                 dry_run = FALSE,
+                                 min_interval_s = 1.5
+                                 ) {
   stopifnot(.syn_is_id(base_id), .syn_is_scalar_chr(remote_folder_path))
   
   folder_id <- syn_ensure_folder_path(

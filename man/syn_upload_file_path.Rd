@@ -15,7 +15,8 @@ syn_upload_file_path(
   annotations = NULL,
   token = NULL,
   verbose = FALSE,
-  dry_run = FALSE
+  dry_run = FALSE,
+  min_interval_s = 1.5
 )
 }
 \arguments{
@@ -40,6 +41,8 @@ syn_upload_file_path(
 \item{verbose}{Logical.}
 
 \item{dry_run}{Logical.}
+
+\item{min_interval_s}{Brief period in seconds to pause if using function in a loop uploading multiple times, otherwise will run into issues.}
 }
 \value{
 `"syn_upload_result"` (see [syn_upload_file()]).
