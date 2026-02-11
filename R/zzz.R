@@ -25,4 +25,6 @@ utils::globalVariables(c(
 ))
 
 
-#' @useDynLib weathertools, .registration = TRUE
+#' @useDynLib dataplane, .registration = TRUE
+#' @importFrom Rcpp sourceCpp
+NULL
