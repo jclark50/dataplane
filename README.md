@@ -1,3 +1,11 @@
+=======
+``` r
+devtools::install_github("jclark50/dataplane")
+# OR
+pak::pak("jclark50/dataplane")
+```
+
+
 ## Dataplane: self-describing Parquet files and Arrow datasets
 
 Dataplane is a small set of utilities for making tabular data files easier to understand *later*—by you or anyone else—without hunting for a separate data dictionary.
@@ -12,7 +20,6 @@ Dataplane stores this information as lightweight metadata alongside your data, s
 
 ---
 
-<<<<<<< HEAD
 ## Quick definitions (no background assumed)
 
 - **Table**: rows × columns (like a spreadsheet).
@@ -79,12 +86,7 @@ Some workflows store Parquet files in cloud storage or hosted platforms.
 - **Synapse**: a hosted platform some research groups use for managing and sharing datasets.
 
 These are useful in production pipelines, but they are not required to understand Dataplane or use it locally.
-=======
-``` r
-devtools::install_github("jclark50/dataplane")
-# OR
-pak::pak("jclark50/dataplane")
-```
+
 
 ````markdown
 # dataplane
@@ -165,6 +167,12 @@ res$dt[]
 res$meta$spec_dt[]
 res$meta$audit_dt[]
 ```
+
+---
+
+---
+
+---
 
 ---
 
