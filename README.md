@@ -1,6 +1,3 @@
-
-
-
 ## Dataplane: self-describing Parquet files and Arrow datasets
 
 Dataplane is a small set of utilities for making tabular data files easier to understand *later*—by you or anyone else—without hunting for a separate data dictionary.
@@ -15,6 +12,11 @@ Dataplane stores this information as lightweight metadata alongside your data, s
 
 
 ---
+
+> **Package manual (CRAN-style PDF):**  
+> For a complete function reference in the standard R “package manual” format, see PDF under /docs:  
+> https://github.com/jclark50/dataplane/blob/main/docs/dataplane_1.0.0.pdf
+
 
 To install: 
 ``` r
