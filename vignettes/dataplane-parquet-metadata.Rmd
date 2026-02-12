@@ -18,14 +18,14 @@ knitr::opts_chunk$set(
 
 ## Overview
 
-This vignette shows how to use Dataplane’s Parquet/Dataset utilities to:
+This vignette introduces Dataplane’s Parquet/Dataset utilities in a gradual way:
 
-- create and edit a **spec** that documents column meaning, units, and storage intent
-- optionally attach **unit attributes** to data columns (lightweight, R-native)
-- optionally apply **integer storage encoding** (e.g., store `25.12` as `2512`)
-- write and read **Parquet files** with embedded metadata
-- write and open **Arrow Datasets** (directories of Parquet files) with a sidecar metadata file
-- quickly inspect (“dp_detect”) whether a file/dataset likely contains Dataplane metadata
+1) **Start with the simplest useful idea**: a *spec* that documents columns and units  
+2) Add **optional unit attributes** (helpful in R workflows, no file I/O required)  
+3) Introduce **Parquet I/O with embedded metadata**  
+4) Only then introduce **scaling (integer storage columns)** and how round-tripping works  
+5) Finally, show **dataset directories + a sidecar metadata file** and how to open/query them  
+6) Close with **detection** and **legacy prefixes**
 
 All examples are intentionally small and use a temporary directory.
 
@@ -42,15 +42,11 @@ library(dplyr)
 library(dataplane)
 ```
 
-> **Development note (not needed for published vignettes):**  
-> If you are testing this vignette before installing the package, you can source your local R files instead of `library(dataplane)`.
-
 ---
 
 ## A small example dataset
 
 For the vignette, we’ll use a simple time series with a few typical weather-ish fields.
-Nothing here is required—Dataplane works with any tabular data.
 
 ```{r example-data}
 dt <- data.table(
@@ -68,238 +64,175 @@ dt
 
 ---
 
-## 1) Specs: what they are and why they exist
+## 1) Specs: a lightweight “data contract”
 
-A Dataplane spec is a structured description of your table’s columns.
+A Dataplane **spec** is a structured description of your table’s columns.
 
-At minimum, a spec can capture:
+At minimum, it can capture:
 
-- **concept** (what a column represents)
-- **metric/imperial/declared units** (documentation)
-- **writer_scale** (how you *intend* to store values if using integer scaling)
+- `concept`: what a column represents (if recognized)
+- units in different systems (`metric_units`, `imperial_units`)
+- `declared_units`: an optional override (when you want to force a specific unit label)
 
-The main entry point is `dp_spec_default()` (also exported as the alias `dp_spec()`).
+Later (not yet), the spec can also include **scaling intent** (`writer_scale`), but for now,
+ignore scaling—this section is just about documentation.
 
 ### 1.1 Create a default spec
 
-`dp_spec_default()` uses a small internal concept catalog (synonyms) to pre-fill what it can.
-Anything it cannot confidently match is left blank (NA), by design.
+`dp_spec_default()` inspects column names and tries to match them to a small internal
+concept catalog (synonyms). If it can’t confidently match a column, it leaves fields as `NA`.
 
 ```{r spec-default}
 sp <- dp_spec_default(dt, declared_system = "metric", include_unmatched = TRUE)
 sp
 ```
 
-### 1.2 Inspect the spec table
+### 1.2 Look at a minimal view of the spec
 
-The spec object is an S3 object with a `fields` table inside.
+The full spec table has several columns; early on it’s easier to just look at the most
+important ones.
 
-```{r spec-fields}
-sp$fields[]
+```{r spec-fields-minimal}
+sp$fields[, .(column, concept, metric_units, imperial_units, declared_units)]
 ```
-
-Key columns you’ll see:
-
-- `column`: the original column name
-- `concept`: matched concept label (or NA)
-- `metric_units`, `imperial_units`: documentation targets
-- `declared_units`: optional override (see next section)
-- `writer_scale`: optional numeric scale factor for integer storage
 
 ---
 
-## 2) Editing specs: dp_set_units() and dp_set_scale()
+## 2) Editing specs: dp_set_units()
 
-A helpful mental model:
+`dp_set_units()` updates the *spec*. It does not change your data.
 
-- `dp_set_units()` and `dp_set_scale()` **edit the spec** (documentation + intent).
-- They do **not** change your data.
+This is useful when:
 
-### 2.1 Override units for specific columns (dp_set_units)
+- your column name is ambiguous and the catalog guessed wrong
+- you want to override units for a column that wasn’t matched
+- you want to set a `declared_units` override (strongest “label”)
 
-You can update metric/imperial units and also optionally force a declared unit.
-
-- If `declared_units` is set, it takes precedence for “declared” operations.
-- If `declared_units` is missing, Dataplane uses the spec’s `declared_system` to infer
-  declared units from metric/imperial.
+### 2.1 Override units for specific columns
 
 ```{r set-units}
 sp <- dp_set_units(
   sp,
-  columns        = c("wind"),
+  columns        = "wind",
   metric_units   = "m/s",
   imperial_units = "mph"
 )
 
-# Force declared units for a single column (optional pattern)
+# Example: force a declared unit label for WBGT (optional pattern)
 sp <- dp_set_units(sp, columns = "wbgt", declared_units = "degC")
 
-sp$fields[]
-```
-
-### 2.2 Set scaling intent (dp_set_scale)
-
-Integer scaling is optional. When you set `writer_scale`, you’re stating:
-
-> “If scaling is enabled at write time, multiply by this factor and store as integer.”
-
-Examples:
-
-- `writer_scale = 100` stores two decimals (e.g., `25.12` -> `2512`)
-- `writer_scale = 10000` for lat/lon preserves 4 decimals as integers
-
-```{r set-scale}
-sp <- dp_set_scale(sp, columns = c("temp", "wbgt"), writer_scale = 100)
-sp <- dp_set_scale(sp, columns = c("lat", "lon"),  writer_scale = 10000)
-
-sp$fields[]
+sp$fields[, .(column, concept, metric_units, imperial_units, declared_units)]
 ```
 
 ---
 
-## 3) Unit attributes on columns: dp_tag_units() and dp_check_units()
+## 3) Unit attributes (optional): dp_tag_units() and dp_check_units()
 
-Another mental model:
+Dataplane can optionally attach units as an attribute on each column (default attribute name: `"units"`).
+This is **R-native**, lightweight, and can help prevent unit confusion in analysis.
 
-- `dp_tag_units()` **applies** your spec to a data object by attaching unit attributes
-  (e.g., `attr(x$temp, "units") <- "degC"`).
-- `dp_set_units()` edits the spec; `dp_tag_units()` edits (a copy of) the data.
+Important distinction:
 
-### 3.1 Tag missing unit attributes (dp_tag_units)
+- `dp_set_units()` edits the spec (documentation)
+- `dp_tag_units()` applies the spec to a data object (adds attributes to a copy of the data)
 
-`dp_tag_units()` returns a **copy** of your data plus an audit table of what it did.
+### 3.1 Tag missing unit attributes
 
 ```{r tag-units}
 tag <- dp_tag_units(dt, sp, only_missing = TRUE, system = "declared", unit_attr = "units")
 
 dt_u <- tag$dt
-tag$did_tag[]
+
+# Keep the audit short early on:
+tag$did_tag[did_tag == TRUE, .(column, tag_units)]
 ```
 
-Check the attribute on a column:
+Check a couple attributes:
 
 ```{r show-units-attr}
 attr(dt_u$temp, "units")
 attr(dt_u$wind, "units")
 ```
 
-### 3.2 Validate unit consistency (dp_check_units)
+### 3.2 Validate unit consistency
 
-`dp_check_units()` returns an audit table and warns if it sees issues.
-
-This is intentionally forgiving by default:
-
-- it warns (does not stop) unless you set `stop_on_any = TRUE`
-- it reports missing columns, missing units, mismatches, and unexpected units
+`dp_check_units()` compares current unit attributes to what the spec expects.
+It returns a report and warns by default (does not stop unless you ask it to).
 
 ```{r check-units}
 audit_units <- dp_check_units(
   dt_u, sp,
   system      = "declared",
   unit_attr   = "units",
-  warn_max    = 20,
+  warn_max    = 10,
   stop_on_any = FALSE
 )
 
-audit_units[]
+# Early in the vignette, just show non-OK rows:
+audit_units[status != "ok"]
 ```
 
 ---
 
-## 4) Scaling: encode/decode in-memory
+## 4) Parquet I/O with embedded metadata: dp_write() and dp_read()
 
-Scaling is opt-in. There are two separate concerns:
+Now that there is a spec (and optionally unit attributes), the next step is file I/O.
 
-- **in-memory encoding/decoding**: useful for experimentation
-- **on-write scaling**: handled automatically by `dp_write(..., scale=TRUE)`
+Core behavior:
 
-### 4.1 Encode: create integer storage columns (dp_scale_encode)
+- `dp_write()` writes a **single Parquet file** and embeds metadata into Parquet schema key/value pairs.
+- `dp_read()` reads the file back and returns both:
+  - the data
+  - parsed metadata (`spec_dt`, `audit_dt`, plus raw key/values)
 
-This creates new columns (default suffix `_i`) containing the integer-scaled values.
-
-```{r scale-encode}
-enc <- dp_scale_encode(dt, sp, suffix = "_i", drop_original = FALSE, round_fn = "round")
-
-dt_enc    <- enc$dt
-scale_map <- enc$scale_map
-
-dt_enc
-scale_map[]
-```
-
-### 4.2 Decode: reconstruct original values from storage columns (dp_scale_decode)
-
-`dp_scale_decode()` needs the audit/plan table (the “map”) that identifies:
-
-- base column name
-- storage column name
-- writer_scale used
-
-```{r scale-decode}
-dt_dec <- dp_scale_decode(dt_enc, audit_dt = scale_map, keep_storage = TRUE, overwrite = FALSE)
-dt_dec
-```
-
----
-
-## 5) Parquet I/O: dp_write() and dp_read()
-
-Core workflow:
-
-- `dp_write()` writes data to a Parquet file and embeds metadata in schema key/value pairs
-- `dp_read()` reads data back and optionally:
-  - decodes scaled storage columns
-  - reattaches declared unit attributes
-
-### 5.1 Write to a temporary file
+### 4.1 Write to a temporary file
 
 ```{r paths}
 out_dir <- file.path(tempdir(), "dataplane_vignette")
-dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+
+# On some Windows setups, tempdir() subfolders can be flaky; fall back to a safe user-writable location if needed.
+ok <- tryCatch({
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  file.access(out_dir, 2) == 0
+}, error = function(e) FALSE)
+
+if (!isTRUE(ok)) {
+  out_dir <- file.path(path.expand("~"), "dataplane_vignette")
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+}
 
 pq_path <- file.path(out_dir, "example.parquet")
 pq_path
 ```
 
-Now write.
+Write a Parquet file with metadata.
 
-Important arguments (Parquet write):
+Notes:
+- `mode="validate"` runs `dp_check_units()` before writing (warning by default).
+- `tag_missing_units=TRUE` is convenient: it tags unit attributes before writing.
+- **No scaling yet** in this first I/O example (`scale = FALSE`).
 
-- `spec`: either `"metric"/"imperial"` or a spec object (preferred once you edit it)
-- `mode`:
-  - `"document"`: minimal checks, just write metadata
-  - `"validate"`: run `dp_check_units()` before writing (warns by default)
-- `scale`: if TRUE, create integer storage columns at write time
-- `tag_missing_units`: if TRUE, attach unit attributes before writing
-
-```{r write-parquet}
+```{r write-parquet-basic}
 res_w <- dp_write(
   x = dt,
   path = pq_path,
   spec = sp,
   mode = "validate",
-  scale = TRUE,
-  suffix = "_i",
-  drop_original = FALSE,
+  scale = FALSE,
   tag_missing_units = TRUE,
   compression = "zstd"
 )
 
-# dp_write() returns a list invisibly; show a few useful pieces:
-names(res_w)
+# dp_write() returns invisibly; in a vignette it can help to show a small confirmation:
+res_w$path
 ```
 
-### 5.2 Read back (decode + attach units)
+### 4.2 Read back (and re-attach units)
 
-`dp_read()` returns a list with:
-
-- `$dt`: the data
-- `$meta`: parsed metadata (including the spec table and audit table)
-
-```{r read-parquet}
+```{r read-parquet-basic}
 res_r <- dp_read(
   path = pq_path,
-  decode_scaled = TRUE,
+  decode_scaled = TRUE,   # harmless here; nothing scaled yet
   keep_storage  = TRUE,
   attach_units  = "declared"
 )
@@ -310,48 +243,114 @@ meta2 <- res_r$meta
 dt2
 ```
 
-Confirm units were attached:
+Confirm unit attributes were attached:
 
-```{r read-parquet-units}
+```{r read-parquet-basic-units}
 attr(dt2$temp, "units")
 attr(dt2$wbgt, "units")
 ```
 
 ---
 
-## 6) Metadata-only reads: dp_read_meta()
+## 5) Metadata-only reads: dp_read_meta()
 
-Sometimes you want to inspect metadata without loading data.
-
-This is common when:
-
-- you’re auditing a directory of Parquet files
-- you want to confirm declared system / version / keys
-- you want to see what scaling was applied
+Sometimes you want to inspect metadata without loading the full data.
 
 ```{r read-meta-only}
 m <- dp_read_meta(pq_path, parse = TRUE)
 
-m$prefix
-names(m$kv)
+# Show a small, human-friendly subset:
+list(
+  prefix = m$prefix,
+  declared_system = m$kv[[m$keys$declared_system]],
+  spec_version    = m$kv[[m$keys$spec_version]]
+)
+```
 
-# Spec and audit tables (if present)
-m$spec_dt[]
-m$audit_dt[]
+Show a compact view of the stored spec and audit tables:
+
+```{r read-meta-only-compact}
+m$spec_dt[, c('column', 'concept', 'declared_units')][]
+m$audit_dt[, c('column', 'storage_column', 'writer_scale', 'did_scale', 'did_tag')][]
 ```
 
 ---
 
-## 7) Dataset directories (Arrow Datasets): dp_write() and dp_open()
+## 6) Scaling (integer storage columns): introduce gently
 
-Arrow Datasets are directory-based collections of Parquet files.
+Scaling is opt-in. It is useful when you want consistent decimal precision and sometimes smaller storage.
 
-**Important practical note:**  
-Dataplane stores dataset metadata in a sidecar Parquet file in the dataset directory
-(e.g., `dp_meta.parquet`). By default, Arrow may try to treat that sidecar file as part
-of the dataset unless you tell Arrow to ignore files with a prefix like `dp_`.
+Key idea:
 
-This vignette demonstrates the recommended call pattern: pass `ignore_prefixes` containing `dp_`.
+- If `writer_scale = 100`, a value like `25.12` can be stored as integer `2512` in a companion column like `temp_i`.
+- Dataplane can automatically create those storage columns on write (`dp_write(..., scale=TRUE)`).
+- Dataplane can also decode them on read (`dp_read(..., decode_scaled=TRUE)`).
+
+### 6.1 Record scaling intent in the spec: dp_set_scale()
+
+This still does **not** change your data; it only changes what the spec says should happen *if scaling is enabled*.
+
+```{r set-scale}
+sp_sc <- sp
+sp_sc <- dp_set_scale(sp_sc, columns = c("temp", "wbgt"), writer_scale = 100)
+sp_sc <- dp_set_scale(sp_sc, columns = c("lat", "lon"),  writer_scale = 10000)
+
+# Don’t print the whole spec table; just show the columns that now have scaling intent:
+sp_sc$fields[is.finite(writer_scale) & writer_scale != 0, .(column, writer_scale)]
+```
+
+### 6.2 Write with scaling enabled (creates storage columns)
+
+```{r write-parquet-scaled}
+pq_path_sc <- file.path(out_dir, "example_scaled.parquet")
+
+res_w_sc <- dp_write(
+  x = dt,
+  path = pq_path_sc,
+  spec = sp_sc,
+  mode = "validate",
+  scale = TRUE,
+  suffix = "_i",
+  drop_original = FALSE,
+  tag_missing_units = TRUE,
+  compression = "zstd"
+)
+
+res_w_sc$path
+```
+
+Read back and decode:
+
+```{r read-parquet-scaled}
+res_r_sc <- dp_read(
+  path = pq_path_sc,
+  decode_scaled = TRUE,
+  keep_storage  = TRUE,
+  attach_units  = "declared"
+)
+
+dt_sc <- res_r_sc$dt
+dt_sc
+```
+
+Show just the storage columns (if present):
+
+```{r read-parquet-scaled-storage-cols}
+storage_cols <- grep("_i$", names(dt_sc), value = TRUE)
+storage_cols
+dt_sc[, ..storage_cols]
+```
+
+---
+
+## 7) Dataset directories (Arrow Datasets) + sidecar metadata
+
+A dataset is a directory of Parquet files intended for scalable, lazy queries.
+
+Dataplane supports dataset metadata via:
+
+- `dp_write_dataset()` to write the dataset **and** a sidecar metadata Parquet file (e.g., `dp_meta.parquet`)
+- `dp_open()` to open the dataset and read sidecar metadata
 
 ### 7.1 Write a dataset + sidecar metadata
 
@@ -359,124 +358,56 @@ This vignette demonstrates the recommended call pattern: pass `ignore_prefixes` 
 ds_dir <- file.path(out_dir, "example_dataset")
 dir.create(ds_dir, recursive = TRUE, showWarnings = FALSE)
 
-# Create an Arrow Table (small demo)
+# Small demo dataset: Arrow Table from dt
 tbl <- arrow::Table$create(dt)
 
+# NOTE:
+# - dp_write_dataset() writes the dataset itself using arrow::write_dataset()
+# - scale_document=TRUE only documents intended storage columns; it does NOT transform the dataset data
 res_ds <- dp_write_dataset(
   x = tbl,
   path = ds_dir,
-  spec = sp,
-  scale_document = TRUE,   # documents intended storage columns; does NOT transform data
+  spec = sp_sc,
+  scale_document = TRUE,
   prefix = "dp",
+  sidecar_overwrite = TRUE,
+  sidecar_compression = "zstd",
   write_format = "parquet"
 )
 
 res_ds$sidecar_path
-
-# Show what's on disk
 list.files(ds_dir, recursive = TRUE)
-
 ```
 
-### 7.2 Open the dataset and read metadata (recommended)
+### 7.2 Open the dataset (ignore sidecar as data)
+
+The sidecar is a Parquet file; Arrow will treat it like a data file unless told to ignore it.
+Dataplane’s recommended pattern is to ignore prefixes like `dp_` so `dp_meta.parquet` is excluded.
 
 ```{r open-dataset}
 opened <- dp_open(
   ds_dir,
   metadata = "sidecar",
-  # IMPORTANT: ignore "dp_" so the sidecar dp_meta.parquet is NOT treated as a data file
   ignore_prefixes = c("dp_", "_dp_", "klimo_", "_klimo_")
 )
 
-opened$ds
 opened$meta$sidecar_path
-opened$meta$spec_dt[]
+opened$meta$spec_dt[, c('column', 'declared_units')][]
 ```
 
-### 7.3 Query without collecting (Arrow + dplyr)
-
-This section shows the common “filter + summarize” pattern without pulling full data into memory.
+### 7.3 Lazy query example
 
 ```{r dataset-query}
 ds <- opened$ds
 
-# ---- 1) Inspect available columns in the dataset schema ----
-ds_cols <- names(ds)
-cat("Dataset columns:\n")
-print(ds_cols)
+# Don’t print everything: just confirm a few columns exist
+head(names(ds), 10)
 
-# Guardrail: if the dataset accidentally contains only the sidecar column, re-open with ignore_prefixes.
-if (length(ds_cols) == 1 && identical(ds_cols, "dp_meta")) {
-  message(
-    "Dataset schema contains only 'dp_meta'. This usually means the sidecar file ",
-    "was included as a data file. Re-opening the dataset while ignoring 'dp_' files."
-  )
-
-  opened <- dp_open(
-    ds_dir,
-    metadata = "sidecar",
-    ignore_prefixes = c("dp_", "_dp_", "klimo_", "_klimo_")
-  )
-  ds <- opened$ds
-  ds_cols <- names(ds)
-  cat("Dataset columns after re-open:\n")
-  print(ds_cols)
-}
-
-# ---- 2) Find WBGT robustly ----
-has_wbgt   <- "wbgt" %in% ds_cols
-has_wbgt_i <- "wbgt_i" %in% ds_cols
-
-audit <- opened$meta$audit_dt
-wbgt_scale   <- NA_real_
-wbgt_storage <- NA_character_
-
-if (!is.null(audit) && nrow(audit)) {
-  wbgt_row <- audit[tolower(column) == "wbgt"][1]
-  if (nrow(wbgt_row)) {
-    wbgt_storage <- wbgt_row$storage_column
-    wbgt_scale   <- suppressWarnings(as.numeric(wbgt_row$writer_scale))
-  }
-}
-
-# ---- 3) Build a queryable wbgt expression ----
-if (has_wbgt) {
-  ds_q <- ds
-  wbgt_expr <- quote(wbgt)
-
-} else {
-  storage_col <- if (!is.na(wbgt_storage) && nzchar(wbgt_storage) && wbgt_storage %in% ds_cols) {
-    wbgt_storage
-  } else if (has_wbgt_i) {
-    "wbgt_i"
-  } else {
-    NA_character_
-  }
-
-  if (is.na(storage_col)) {
-    stop(
-      "No usable WBGT field found in the dataset.\n",
-      "Expected either 'wbgt' or a storage column like 'wbgt_i'.\n",
-      "Available columns were:\n",
-      paste(ds_cols, collapse = ", ")
-    )
-  }
-
-  scale_factor <- if (is.finite(wbgt_scale) && wbgt_scale != 0) wbgt_scale else 100
-  cat(sprintf("Decoding WBGT from storage column '%s' using scale factor %g\n", storage_col, scale_factor))
-
-  ds_q <- ds %>%
-    mutate(wbgt = .data[[storage_col]] / scale_factor)
-
-  wbgt_expr <- quote(wbgt)
-}
-
-# ---- 4) Run a lazy query, then collect the small result ----
-res <- ds_q %>%
-  filter(!!wbgt_expr > 24) %>%
+res <- ds %>%
+  filter(wbgt > 24) %>%
   summarize(
     n = n(),
-    wbgt_mean = mean(!!wbgt_expr, na.rm = TRUE)
+    wbgt_mean = mean(wbgt, na.rm = TRUE)
   ) %>%
   collect()
 
@@ -485,14 +416,16 @@ res
 
 ---
 
-## 8) dp_detection: dp_detect() and print_dp_detect()
+## 8) Detection: dp_detect() and dp_print_detect()
 
-```{r dp_detect-file}
+Use detection when you want a quick signal for whether a file/dataset likely contains Dataplane metadata.
+
+```{r dp-detect-file}
 d_file <- dp_detect(pq_path, mode = "detect")
 dp_print_detect(d_file)
 ```
 
-```{r dp_detect-dataset}
+```{r dp-detect-dataset}
 d_dir <- dp_detect(ds_dir, mode = "detect")
 dp_print_detect(d_dir)
 ```
@@ -501,14 +434,10 @@ dp_print_detect(d_dir)
 
 ## 9) Prefixes and legacy metadata
 
-Dataplane uses a prefix for schema keys (default `dp:`). If you have older files with
-a different prefix (e.g., `klimo:`), you can specify:
-
-- `preferred_prefix = "dp"`
-- `legacy_prefixes = c("klimo")`
+Dataplane stores schema metadata keys under a prefix (default `dp:`).
+If you have older files with a different prefix (e.g., `klimo:`), provide legacy prefixes:
 
 ```{r legacy-prefix}
-# Example call pattern (no actual legacy file needed for the vignette)
 res_any <- dp_read(
   path = pq_path,
   preferred_prefix = "dp",
@@ -524,30 +453,31 @@ res_any$meta$prefix
 
 ### Recommended workflow (typical)
 
-1. Start with `dp_spec_default(dt, "metric")`
-2. Edit: `dp_set_units()` / `dp_set_scale()`
-3. Write: `dp_write(..., spec = sp, mode = "validate", scale = TRUE)`
-4. Read: `dp_read(..., decode_scaled = TRUE, attach_units = "declared")`
+1. Build a spec: `dp_spec_default(dt, "metric")`
+2. Edit units: `dp_set_units()`
+3. Optionally tag/check units: `dp_tag_units()` / `dp_check_units()`
+4. Write: `dp_write(..., spec = sp, mode = "validate")`
+5. Read: `dp_read(..., attach_units = "declared")`
 
 ### When to use scaling
 
 Scaling is useful when:
 
-- you want smaller files or more stable storage types
-- you want consistent decimal precision across languages/tools
-- you expect to store many millions of rows
+- you want stable decimal precision in storage
+- you want consistent round-tripping across tools/languages
+- you expect many millions of rows and care about storage types
 
-Scaling is not necessary for every use case. It is intentionally opt-in.
+It is optional; start without it, then add it when it clearly helps.
 
 ### When to use datasets + sidecar metadata
 
 Use dataset directories when:
 
-- you partition by time, geography, or organization
-- you want lazy queries via Arrow
-- you expect the dataset to grow
+- you partition by time/geography/organization
+- you want lazy queries (Arrow) without pulling everything into RAM
+- the dataset will grow over time
 
-The sidecar metadata is recommended because it provides a stable “one place to read” for spec/audit info.
+The sidecar metadata gives you a stable place to read spec/audit information.
 
 ---
 
