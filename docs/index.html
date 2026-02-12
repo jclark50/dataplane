@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>dataplane</title>
+  <meta name="description" content="dataplane — R tools for fast, consistent Parquet/Dataset I/O with lightweight metadata and scaling helpers." />
+
+  <style>
+    :root{
+      --bg: #0b1220;
+      --card: rgba(255,255,255,0.06);
+      --card2: rgba(255,255,255,0.10);
+      --text: rgba(255,255,255,0.92);
+      --muted: rgba(255,255,255,0.68);
+      --link: #7dd3fc;
+      --border: rgba(255,255,255,0.12);
+      --shadow: 0 20px 60px rgba(0,0,0,0.35);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      color: var(--text);
+      background:
+        radial-gradient(1100px 500px at 15% 10%, rgba(56,189,248,0.35), transparent 60%),
+        radial-gradient(900px 500px at 80% 20%, rgba(168,85,247,0.30), transparent 65%),
+        radial-gradient(1000px 700px at 50% 95%, rgba(34,197,94,0.14), transparent 60%),
+        var(--bg);
+      line-height: 1.45;
+    }
+
+    a { color: var(--link); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 56px 20px;
+    }
+
+    .header {
+      display: flex;
+      gap: 18px;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 26px;
+    }
+
+    .title-block h1 {
+      margin: 0 0 8px 0;
+      font-size: 44px;
+      letter-spacing: -0.02em;
+    }
+    .title-block p {
+      margin: 0;
+      color: var(--muted);
+      max-width: 70ch;
+      font-size: 16px;
+    }
+
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 6px;
+    }
+
+    .badge {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.05);
+      border-radius: 999px;
+      font-size: 13px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 18px;
+    }
+
+    @media (max-width: 860px){
+      .header { flex-direction: column; }
+      .badges { justify-content: flex-start; }
+      .grid { grid-template-columns: 1fr; }
+      .title-block h1 { font-size: 38px; }
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, var(--card), rgba(255,255,255,0.03));
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px 18px;
+    }
+
+    .card h2 {
+      margin: 0 0 10px 0;
+      font-size: 18px;
+      letter-spacing: -0.01em;
+    }
+
+    .card p {
+      margin: 0 0 10px 0;
+      color: var(--muted);
+      font-size: 14.5px;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    @media (max-width: 520px){
+      .actions { grid-template-columns: 1fr; }
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.07);
+      color: var(--text);
+      font-weight: 600;
+      font-size: 14px;
+      text-decoration: none;
+      transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+    }
+
+    .btn:hover {
+      background: rgba(255,255,255,0.10);
+      border-color: rgba(255,255,255,0.18);
+      transform: translateY(-1px);
+      text-decoration: none;
+    }
+
+    .btn.primary {
+      background: linear-gradient(135deg, rgba(125,211,252,0.25), rgba(168,85,247,0.18));
+      border-color: rgba(125,211,252,0.28);
+    }
+
+    .btn.primary:hover {
+      background: linear-gradient(135deg, rgba(125,211,252,0.30), rgba(168,85,247,0.22));
+    }
+
+    .kvs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 14px;
+      margin-top: 10px;
+    }
+    .kv {
+      padding: 12px 12px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+    }
+    .kv .k { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .kv .v { font-size: 14px; color: var(--text); font-weight: 600; }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12.5px;
+      color: rgba(255,255,255,0.84);
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(0,0,0,0.28);
+      border: 1px solid rgba(255,255,255,0.10);
+      overflow-x: auto;
+      margin: 10px 0 0 0;
+      white-space: nowrap;
+    }
+
+    .footer {
+      margin-top: 18px;
+      color: rgba(255,255,255,0.55);
+      font-size: 12.5px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .sep {
+      height: 1px;
+      background: rgba(255,255,255,0.10);
+      margin: 14px 0;
+    }
+
+    .note {
+      color: rgba(255,255,255,0.62);
+      font-size: 13px;
+      margin-top: 10px;
+    }
+
+    .tiny {
+      font-size: 12px;
+      color: rgba(255,255,255,0.55);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div class="title-block">
+        <h1>dataplane</h1>
+        <p>
+          R tools for fast, consistent Parquet / Dataset I/O with lightweight metadata + scaling helpers —
+          designed for real pipelines (simple conventions, explicit units/scales, minimal friction).
+        </p>
+      </div>
+
+      <div class="badges" aria-label="quick tags">
+        <span class="badge">Parquet</span>
+        <span class="badge">Dataset metadata</span>
+        <span class="badge">Scaling</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Start here</h2>
+        <p>
+          Most users only need one of these: the PDF manual, the GitHub repo, or the install command.
+        </p>
+
+        <div class="actions">
+          <!-- Update this filename if your manual name differs -->
+          <a class="btn primary" href="dataplane_1.0.0.pdf">Package manual (PDF)</a>
+          <!-- Update this repo link if needed -->
+          <a class="btn" href="https://github.com/jclark50/dataplane">View repository</a>
+        </div>
+
+        <div class="sep"></div>
+
+        <h2>Install</h2>
+        <p>Install the current version directly from GitHub:</p>
+        <div class="mono">remotes::install_github("jclark50/dataplane")</div>
+
+        <div class="sep"></div>
+
+        <h2>Quick examples</h2>
+        <p>Common actions in dataplane-style workflows (adjust to your API names as needed):</p>
+
+        <div class="mono">spec &lt;- dp_spec_default()</div>
+        <div class="mono">dp_write_dataset(dt, path = "data/out")</div>
+        <div class="mono">dt2 &lt;- dp_read("data/out")</div>
+
+        <p class="note">
+          If you want, replace these with your “canonical” example once your README is finalized.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>What’s inside</h2>
+        <p>A small toolkit for making Parquet datasets more reliable and more portable.</p>
+
+        <div class="kvs">
+          <div class="kv">
+            <div class="k">I/O helpers</div>
+            <div class="v">Read/write datasets cleanly</div>
+          </div>
+          <div class="kv">
+            <div class="k">Metadata</div>
+            <div class="v">Attach + retrieve dataset info</div>
+          </div>
+          <div class="kv">
+            <div class="k">Scaling</div>
+            <div class="v">Encode/decode scaled fields</div>
+          </div>
+          <div class="kv">
+            <div class="k">Consistency</div>
+            <div class="v">Schema + unit conventions</div>
+          </div>
+        </div>
+
+        <div class="sep"></div>
+
+        <h2>Direct links</h2>
+        <p class="tiny">
+          If you want a stable “manual” link for your README, this is usually what you’d link once Pages is enabled:
+        </p>
+
+        <!-- Update "dataplane" and filename to match your Pages URL + file -->
+        <div class="mono">https://jclark50.github.io/dataplane/dataplane_1.0.0.pdf</div>
+
+        <div class="footer">
+          <div>© <span id="yr"></span> dataplane</div>
+          <div><a href="https://github.com/jclark50/dataplane/issues">Report an issue</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById("yr").textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
