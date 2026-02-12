@@ -128,7 +128,7 @@
 
 .dp_meta_pick_prefix <- function(kv_names, preferred = "dp") {
   kv_names <- as.character(kv_names %||% character())
-  prefixes <- unique(c(preferred, fallbacks))
+  prefixes <- unique(c(preferred))
   prefixes <- prefixes[!is.na(prefixes) & nzchar(prefixes)]
   if (!length(prefixes)) return(preferred)
   
