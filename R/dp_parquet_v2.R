@@ -22,9 +22,17 @@
 # 0) Small utilities (internal)
 # =============================================================================
 
-`%||%` <- function(x, y) {
-  if (is.null(x) || length(x) == 0L || is.na(x[[1]])) y else x[[1]]
-}
+# `%||%` <- function(x, y) {
+#   if (is.null(x) || length(x) == 0L || is.na(x[[1]])) y else x[[1]]
+# }
+#' Null-coalescing operator
+#'
+#' @name null_coalesce
+#' @aliases %||%
+#' @rdname null_coalesce
+#' @export
+`%||%` <- function(x, y) if (!is.null(x)) x else y
+
 
 .dp_require <- function(pkg) {
   if (!requireNamespace(pkg, quietly = TRUE)) {
@@ -1678,7 +1686,7 @@ dp_write_dataset <- function(
     score = score,
     confidence = confidence,
     prefix_detected = prefix_detected,
-    evidence = unique(c(head(token_keys, 8), head(pref_keys, 8))),
+    evidence = unique(c(utils::head(token_keys, 8), utils::head(pref_keys, 8))),
     reason = sprintf("prefix_keys=%d; token_keys=%d; score=%d", length(pref_keys), length(token_keys), score)
   )
 }
@@ -1767,7 +1775,7 @@ dp_write_dataset <- function(
   }
   
   scan_n <- max(1L, as.integer(scan_n))
-  files2 <- head(files, scan_n)
+  files2 <- utils::head(files, scan_n)
   
   res_list <- lapply(files2, function(fp) {
     .dp_detect_parquet_file(
@@ -1877,7 +1885,7 @@ dp_print_detect <- function(x) {
   if (!is.null(x$sidecar_path)) cat("sidecar_path:    ", x$sidecar_path, "\n", sep = "")
   if (!is.null(x$evidence) && length(x$evidence)) {
     cat("\nEvidence keys (sample):\n")
-    cat(paste0("  - ", head(x$evidence, 10)), sep = "\n")
+    cat(paste0("  - ", utils::head(x$evidence, 10)), sep = "\n")
     cat("\n")
   }
   invisible(x)

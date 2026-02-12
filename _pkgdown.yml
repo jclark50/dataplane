@@ -1,0 +1,61 @@
+url: https://jclark50.github.io/dataplane/
+
+template:
+  bootstrap: 5
+
+home:
+  title: dataplane
+  description: "Data architecture and processing helpers with repeatable metadata workflows."
+
+navbar:
+  structure:
+    left:  [home, reference, articles, news]
+    right: [github]
+  components:
+    github:
+      icon: fab fa-github
+      href: https://github.com/jclark50/dataplane
+
+reference:
+  - title: Parquet + metadata I/O
+    contents:
+      - write_parquet
+      - read_parquet
+      - read_parquet_meta
+      - detect
+      - open_dataset
+      - write_dataset
+      - write_dataset_meta
+      - read_dataset_meta
+
+  - title: Specs, units, scaling
+    contents:
+      - dp_spec
+      - spec_default
+      - set_units
+      - tag_units
+      - check_units
+      - set_scale
+      - scale_encode
+      - scale_decode
+      - unit
+      - "unit<-"
+
+  - title: Utilities
+    contents:
+      - merge_dt_list
+      - flatten_list_columns
+      - filter_cols
+      - drop_null
+      - round_cols
+      - trim_all_cols
+      - to_camel_case
+      - timed
+      - require_ram
+      - mavtime
+      - rep_var
+
+articles:
+  - title: Vignettes
+    contents:
+      - dataplane-parquet-metadata
