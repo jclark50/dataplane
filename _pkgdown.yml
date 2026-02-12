@@ -18,46 +18,32 @@ navbar:
       aria-label: GitHub repository
 
 reference:
-  - title: Parquet + metadata I/O
+  - title: Dataplane I/O + metadata
     contents:
-      # Any current/future write/read helpers (robust to renames that keep prefixes)
-      - starts_with("write_")
-      - starts_with("read_")
-      - open_dataset
-      - detect
-      # If your dataset metadata helpers don't use read_/write_ prefixes, keep them explicit:
-      - write_dataset_meta
-      - read_dataset_meta
+      - starts_with("dp_read")
+      - starts_with("dp_write")
+      - dp_open
+      - dp_detect
+      - dp_print_detect
 
   - title: Specs, units, scaling
     contents:
-      # Core spec object and helpers
       - dp_spec
-      - spec_default
-      - starts_with("set_")
-      - ends_with("_units")
-      - starts_with("scale_")
-      - unit
-      - "unit<-"
+      - dp_spec_default
+      - dp_set_units
+      - dp_set_scale
+      - dp_tag_units
+      - dp_check_units
+      - dp_scale_encode
+      - dp_scale_decode
 
-  - title: Utilities
+  - title: GeoParquet helpers
     contents:
-      - merge_dt_list
-      - flatten_list_columns
-      - filter_cols
-      - drop_null
-      - round_cols
-      - trim_all_cols
-      - to_camel_case
-      - timed
-      - require_ram
-      - mavtime
-      - rep_var
-      # Keep these explicit if you want them shown even if you later rename:
-      - cbind_list
-      - collapse
-      - sanitize_value
-      - stop_cluster
+      - starts_with("gp_geoparquet_")
+
+  - title: Small utilities
+    contents:
+      - "%||%"
 
 articles:
   - title: Vignettes
