@@ -11,7 +11,8 @@ The goal of dataplane is to ...
 You can install the development version of dataplane from [GitHub](https://github.com/) with:
 
 ``` r
-# install.packages("pak")
+devtools::install_github("jclark50/dataplane")
+# OR
 pak::pak("jclark50/dataplane")
 ```
 
