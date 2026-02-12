@@ -1,9 +1,4 @@
-=======
-``` r
-devtools::install_github("jclark50/dataplane")
-# OR
-pak::pak("jclark50/dataplane")
-```
+
 
 
 ## Dataplane: self-describing Parquet files and Arrow datasets
@@ -17,6 +12,18 @@ It focuses on three practical problems that come up all the time in real workflo
 - **Storage quirks**: Were decimals stored normally, or stored compactly as integers with a scale factor?
 
 Dataplane stores this information as lightweight metadata alongside your data, so files remain “self-describing” when they move between projects, machines, teams, and time.
+
+
+---
+
+To install: 
+
+=======
+``` r
+devtools::install_github("jclark50/dataplane")
+# OR
+pak::pak("jclark50/dataplane")
+```
 
 ---
 
