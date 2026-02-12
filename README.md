@@ -1,9 +1,4 @@
-=======
-``` r
-devtools::install_github("jclark50/dataplane")
-# OR
-pak::pak("jclark50/dataplane")
-```
+
 
 
 ## Dataplane: self-describing Parquet files and Arrow datasets
@@ -17,6 +12,16 @@ It focuses on three practical problems that come up all the time in real workflo
 - **Storage quirks**: Were decimals stored normally, or stored compactly as integers with a scale factor?
 
 Dataplane stores this information as lightweight metadata alongside your data, so files remain “self-describing” when they move between projects, machines, teams, and time.
+
+
+---
+
+To install: 
+``` r
+devtools::install_github("jclark50/dataplane")
+# OR
+pak::pak("jclark50/dataplane")
+```
 
 ---
 
@@ -567,15 +572,3 @@ Dataplane functions are intentionally prefixed to avoid conflicts with `arrow` a
 MIT (see `LICENSE`).
 
 ---
-
-## Links
-
-* GitHub repo: [https://github.com/jclark50/dataplane](https://github.com/jclark50/dataplane)
-* Website: [https://jclark50.github.io/dataplane/](https://jclark50.github.io/dataplane/)
-
-```
-
-If you want, paste your current vignette (`dataplane-parquet-metadata.Rmd`) header + section titles and I’ll align the README headings and narrative structure *exactly* (and ensure every function mentioned is exported and documented so pkgdown doesn’t break).
-::contentReference[oaicite:0]{index=0}
-```
->>>>>>> 53b099521d79bb7e3cdfecef1d590cc419f8c4c5
