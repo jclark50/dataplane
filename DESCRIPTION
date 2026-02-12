@@ -10,6 +10,7 @@ RoxygenNote: 7.3.3
 URL: https://jclark50.github.io/dataplane/, https://github.com/jclark50/dataplane
 BugReports: https://github.com/jclark50/dataplane/issues
 Imports: 
+    weathertools,
     arrow,
     data.table,
     digest,
