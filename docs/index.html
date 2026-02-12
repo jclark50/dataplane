@@ -4,44 +4,45 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>dataplane</title>
-  <meta name="description" content="dataplane — R tools for fast, consistent Parquet/Dataset I/O with lightweight metadata and scaling helpers." />
+  <meta name="description" content="dataplane — R tools for fast, consistent Parquet / Dataset I/O with lightweight metadata + scaling helpers." />
 
   <style>
     :root{
       --bg: #0b1220;
-      --card: rgba(255,255,255,0.06);
-      --card2: rgba(255,255,255,0.10);
+      --card: rgba(255,255,255,0.055);
       --text: rgba(255,255,255,0.92);
-      --muted: rgba(255,255,255,0.68);
+      --muted: rgba(255,255,255,0.70);
       --link: #7dd3fc;
       --border: rgba(255,255,255,0.12);
-      --shadow: 0 20px 60px rgba(0,0,0,0.35);
+      --shadow: 0 18px 55px rgba(0,0,0,0.34);
       --radius: 18px;
+      --mono-bg: rgba(0,0,0,0.28);
     }
 
     * { box-sizing: border-box; }
     html, body { height: 100%; }
-body {
-  margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
-  color: var(--text);
 
-  /* Calmer background: lower saturation/contrast + subtle dark overlay */
-  background:
-    linear-gradient(180deg, rgba(11,18,32,0.92), rgba(11,18,32,0.92)),
-    radial-gradient(1100px 500px at 15% 10%, rgba(56,189,248,0.16), transparent 60%),
-    radial-gradient(900px 500px at 80% 20%, rgba(168,85,247,0.12), transparent 65%),
-    radial-gradient(1000px 700px at 50% 95%, rgba(34,197,94,0.06), transparent 60%),
-    var(--bg);
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      color: var(--text);
 
-  line-height: 1.45;
-}
+      /* Calmer background: toned-down color + subtle dark overlay */
+      background:
+        linear-gradient(180deg, rgba(11,18,32,0.92), rgba(11,18,32,0.92)),
+        radial-gradient(1100px 520px at 15% 12%, rgba(56,189,248,0.14), transparent 60%),
+        radial-gradient(950px 520px at 82% 18%, rgba(168,85,247,0.10), transparent 65%),
+        radial-gradient(1000px 720px at 50% 95%, rgba(34,197,94,0.05), transparent 60%),
+        var(--bg);
+
+      line-height: 1.45;
+    }
 
     a { color: var(--link); text-decoration: none; }
     a:hover { text-decoration: underline; }
 
     .wrap {
-      max-width: 980px;
+      max-width: 1040px;
       margin: 0 auto;
       padding: 56px 20px;
     }
@@ -51,18 +52,19 @@ body {
       gap: 18px;
       align-items: flex-start;
       justify-content: space-between;
-      margin-bottom: 26px;
+      margin-bottom: 22px;
     }
 
     .title-block h1 {
-      margin: 0 0 8px 0;
-      font-size: 44px;
+      margin: 0 0 10px 0;
+      font-size: 46px;
       letter-spacing: -0.02em;
     }
+
     .title-block p {
       margin: 0;
       color: var(--muted);
-      max-width: 70ch;
+      max-width: 74ch;
       font-size: 16px;
     }
 
@@ -71,7 +73,7 @@ body {
       flex-wrap: wrap;
       gap: 10px;
       justify-content: flex-end;
-      margin-top: 6px;
+      margin-top: 8px;
     }
 
     .badge {
@@ -83,7 +85,7 @@ body {
       background: rgba(255,255,255,0.05);
       border-radius: 999px;
       font-size: 13px;
-      color: var(--muted);
+      color: rgba(255,255,255,0.72);
       white-space: nowrap;
     }
 
@@ -93,11 +95,11 @@ body {
       gap: 18px;
     }
 
-    @media (max-width: 860px){
+    @media (max-width: 900px){
       .header { flex-direction: column; }
       .badges { justify-content: flex-start; }
       .grid { grid-template-columns: 1fr; }
-      .title-block h1 { font-size: 38px; }
+      .title-block h1 { font-size: 40px; }
     }
 
     .card {
@@ -117,7 +119,7 @@ body {
     .card p {
       margin: 0 0 10px 0;
       color: var(--muted);
-      font-size: 14.5px;
+      font-size: 14.75px;
     }
 
     .actions {
@@ -127,7 +129,7 @@ body {
       margin-top: 14px;
     }
 
-    @media (max-width: 520px){
+    @media (max-width: 540px){
       .actions { grid-template-columns: 1fr; }
     }
 
@@ -141,7 +143,7 @@ body {
       border: 1px solid var(--border);
       background: rgba(255,255,255,0.07);
       color: var(--text);
-      font-weight: 600;
+      font-weight: 650;
       font-size: 14px;
       text-decoration: none;
       transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
@@ -155,12 +157,32 @@ body {
     }
 
     .btn.primary {
-      background: linear-gradient(135deg, rgba(125,211,252,0.25), rgba(168,85,247,0.18));
-      border-color: rgba(125,211,252,0.28);
+      background: linear-gradient(135deg, rgba(125,211,252,0.20), rgba(168,85,247,0.14));
+      border-color: rgba(125,211,252,0.24);
     }
 
     .btn.primary:hover {
-      background: linear-gradient(135deg, rgba(125,211,252,0.30), rgba(168,85,247,0.22));
+      background: linear-gradient(135deg, rgba(125,211,252,0.24), rgba(168,85,247,0.17));
+    }
+
+    .sep {
+      height: 1px;
+      background: rgba(255,255,255,0.10);
+      margin: 14px 0;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12.75px;
+      color: rgba(255,255,255,0.88);
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: var(--mono-bg);
+      border: 1px solid rgba(255,255,255,0.10);
+      overflow-x: auto;
+      margin: 10px 0 0 0;
+      white-space: pre;
+      line-height: 1.35;
     }
 
     .kvs {
@@ -169,26 +191,26 @@ body {
       gap: 10px 14px;
       margin-top: 10px;
     }
+
     .kv {
       padding: 12px 12px;
       border-radius: 14px;
       background: rgba(255,255,255,0.05);
       border: 1px solid var(--border);
     }
-    .kv .k { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
-    .kv .v { font-size: 14px; color: var(--text); font-weight: 600; }
 
-    .mono {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size: 12.5px;
-      color: rgba(255,255,255,0.84);
-      padding: 10px 12px;
-      border-radius: 14px;
-      background: rgba(0,0,0,0.28);
-      border: 1px solid rgba(255,255,255,0.10);
-      overflow-x: auto;
-      margin: 10px 0 0 0;
-      white-space: nowrap;
+    .kv .k { font-size: 12px; color: rgba(255,255,255,0.66); margin-bottom: 4px; }
+    .kv .v { font-size: 14px; color: var(--text); font-weight: 650; }
+
+    .note {
+      color: rgba(255,255,255,0.62);
+      font-size: 13px;
+      margin-top: 10px;
+    }
+
+    .tiny {
+      font-size: 12px;
+      color: rgba(255,255,255,0.56);
     }
 
     .footer {
@@ -201,21 +223,16 @@ body {
       flex-wrap: wrap;
     }
 
-    .sep {
-      height: 1px;
-      background: rgba(255,255,255,0.10);
-      margin: 14px 0;
-    }
-
-    .note {
-      color: rgba(255,255,255,0.62);
-      font-size: 13px;
-      margin-top: 10px;
-    }
-
-    .tiny {
-      font-size: 12px;
-      color: rgba(255,255,255,0.55);
+    /* Small helper: make inline code in prose readable */
+    code.inline {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12.5px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.10);
+      color: rgba(255,255,255,0.88);
+      white-space: nowrap;
     }
   </style>
 </head>
@@ -239,6 +256,7 @@ body {
     </div>
 
     <div class="grid">
+      <!-- LEFT CARD -->
       <div class="card">
         <h2>Start here</h2>
         <p>
@@ -261,17 +279,53 @@ body {
         <div class="sep"></div>
 
         <h2>Quick examples</h2>
-        <p>Common actions in dataplane-style workflows (adjust to your API names as needed):</p>
+        <p>
+          Copy/paste runnable mini-recipes. These show the typical pattern:
+          <code class="inline">spec → write → read + inspect metadata</code>.
+        </p>
 
-        <div class="mono">spec &lt;- dp_spec_default()</div>
-        <div class="mono">dp_write_dataset(dt, path = "data/out")</div>
-        <div class="mono">dt2 &lt;- dp_read("data/out")</div>
+        <p class="tiny">Example 1 — Write one Parquet file that carries its own “data dictionary”</p>
+        <div class="mono">library(data.table)
+library(dataplane)
+
+dt <- data.table(temp_c = 25.12, rh_pct = 55)
+
+sp <- dp_spec_default(dt, declared_system = "metric")
+sp <- dp_set_units(sp, "temp_c", metric_units = "degC")
+sp <- dp_set_units(sp, "rh_pct",  metric_units = "pct")
+
+dp_write(dt, "example.parquet", spec = sp)
+
+res <- dp_read("example.parquet", attach_units = "declared")
+res$dt[]
+res$meta$spec_dt[]</div>
+
+        <p class="tiny" style="margin-top:12px;">Example 2 — Dataset folder workflow (many files + one sidecar metadata file)</p>
+        <div class="mono">library(arrow)
+library(data.table)
+library(dataplane)
+
+dt <- data.table(date = as.Date("2026-01-01"), temp_c = 25.1, rh_pct = 55)
+
+sp <- dp_spec_default(dt, "metric")
+sp <- dp_set_units(sp, "temp_c", metric_units = "degC")
+sp <- dp_set_units(sp, "rh_pct",  metric_units = "pct")
+
+dir.create("dp_ds", showWarnings = FALSE)
+
+dp_write_dataset(arrow::Table$create(dt), path = "dp_ds", spec = sp)
+
+opened <- dp_open("dp_ds", metadata = "sidecar")
+opened$meta$spec_dt[]
+opened$meta$audit_dt[]</div>
 
         <p class="note">
-          If you want, replace these with your “canonical” example once your README is finalized.
+          Tip: the PDF manual is the most complete reference. The repository README usually contains the most current
+          end-to-end workflow examples.
         </p>
       </div>
 
+      <!-- RIGHT CARD -->
       <div class="card">
         <h2>What’s inside</h2>
         <p>A small toolkit for making Parquet datasets more reliable and more portable.</p>
@@ -299,10 +353,9 @@ body {
 
         <h2>Direct links</h2>
         <p class="tiny">
-          If you want a stable “manual” link for your README, this is usually what you’d link once Pages is enabled:
+          If you want a stable “manual” link for your README, link directly to the PDF hosted on Pages:
         </p>
 
-        <!-- Update "dataplane" and filename to match your Pages URL + file -->
         <div class="mono">https://jclark50.github.io/dataplane/dataplane_1.0.0.pdf</div>
 
         <div class="footer">
