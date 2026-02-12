@@ -21,6 +21,13 @@ To install:
 devtools::install_github("jclark50/dataplane")
 # OR
 pak::pak("jclark50/dataplane")
+
+# You will also need the package "weathertools"
+
+devtools::install_github("jclark50/weathertools")
+# OR
+pak::pak("jclark50/weathertools")
+
 ```
 
 ---
