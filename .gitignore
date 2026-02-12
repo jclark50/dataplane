@@ -7,3 +7,5 @@
 /doc/
 /Meta/
 docs/ 
+data.plane.Rproj
+install_notes.R
