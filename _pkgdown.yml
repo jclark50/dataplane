@@ -15,29 +15,28 @@ navbar:
     github:
       icon: fab fa-github
       href: https://github.com/jclark50/dataplane
+      aria-label: GitHub repository
 
 reference:
   - title: Parquet + metadata I/O
     contents:
-      - write_parquet
-      - read_parquet
-      - read_parquet_meta
-      - detect
+      # Any current/future write/read helpers (robust to renames that keep prefixes)
+      - starts_with("write_")
+      - starts_with("read_")
       - open_dataset
-      - write_dataset
+      - detect
+      # If your dataset metadata helpers don't use read_/write_ prefixes, keep them explicit:
       - write_dataset_meta
       - read_dataset_meta
 
   - title: Specs, units, scaling
     contents:
+      # Core spec object and helpers
       - dp_spec
       - spec_default
-      - set_units
-      - tag_units
-      - check_units
-      - set_scale
-      - scale_encode
-      - scale_decode
+      - starts_with("set_")
+      - ends_with("_units")
+      - starts_with("scale_")
       - unit
       - "unit<-"
 
@@ -54,6 +53,11 @@ reference:
       - require_ram
       - mavtime
       - rep_var
+      # Keep these explicit if you want them shown even if you later rename:
+      - cbind_list
+      - collapse
+      - sanitize_value
+      - stop_cluster
 
 articles:
   - title: Vignettes

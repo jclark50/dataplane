@@ -7,21 +7,28 @@
 timed(action, label = NULL, round = 2, ret = FALSE)
 }
 \arguments{
+\item{action}{Character(1). One of "start", "end", or "stop".
+("stop" is treated as "end".)}
+
+\item{label}{Character(1) or NULL. Optional label to manage independent timers.
+If NULL (default), an unnamed script timer is used.}
+
 \item{round}{Integer(1). Decimal places for rounding elapsed time. Default 2.}
 
-\item{ret}{Logical(1). If TRUE, returns start time (on "start") or elapsed
-difftime (on "end"/"stop"). Default FALSE.}
-
-\item{what}{One of "start", "end", or "stop".}
+\item{ret}{Logical(1). If TRUE, returns the start time (on "start") or the
+elapsed difftime (on "end"/"stop"). Default FALSE.}
 }
 \value{
-Invisibly NULL by default; if `ret = TRUE`, a POSIXct (start) or
-  difftime (end/stop).
+Invisibly NULL by default. If `ret = TRUE`, returns a POSIXct start time
+  (on "start") or a difftime elapsed duration (on "end"/"stop").
 }
 \description{
-Start/stop a single unnamed timer for the whole script. Prints start/finish
-timestamps and elapsed time. Optionally returns the timestamp/elapsed.
+Start/stop timers and print start/finish timestamps plus elapsed time.
+Supports:
+- a single unnamed script timer (default), and
+- optional labeled timers (multiple independent timers).
 }
 \examples{
 timed("start"); Sys.sleep(0.2); timed("end")
+timed("start", label = "download"); Sys.sleep(0.1); timed("stop", label = "download")
 }
