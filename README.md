@@ -14,7 +14,7 @@ Dataplane stores this information as lightweight metadata alongside your data, s
 ---
 
 > **Package manual (CRAN-style PDF):**  
-> For a complete function reference in the standard R “package manual” format, see PDF under /docs:
+> For a complete function reference in the standard R “package manual” format, see PDF under /docs.
 > Also accessible at: https://jclark50.github.io/dataplane/
 
 To install: 
