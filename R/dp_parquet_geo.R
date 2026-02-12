@@ -22,7 +22,7 @@
 #' @param geometry_types Optional geometry type(s). May be:
 #'   - a character vector applied to all geometry columns, or
 #'   - a named list keyed by geometry column.
-#' @param crs CRS as PROJJSON (list) or a string convertible via `sf::st_crs()`.
+#' @param crs CRS as PROJJSON (list) or a string convertible via \code{sf::st_crs()}.
 #' @param edges `"planar"` or `"spherical"`.
 #' @param orientation Optional orientation string (currently supports `"counterclockwise"`).
 #' @param bbox Optional numeric bounding box.

@@ -23,5 +23,8 @@ Imports:
 LinkingTo: Rcpp
 Suggests:
     knitr,
-    rmarkdown
+    rmarkdown,
+    crayon,
+    sf,
+    doParallel
 VignetteBuilder: knitr

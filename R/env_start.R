@@ -60,7 +60,12 @@ env_start <- function(num_cores = 2, threshold = 0.99, consecutive_seconds = 15,
   }
 
   cl <- parallel::makeCluster(num_cores)
-  doParallel::registerDoParallel(cl)
+  if (requireNamespace("doParallel", quietly = TRUE)) {
+    doParallel::registerDoParallel(cl)
+  } else {
+    # fallback: no foreach backend; caller can still use base parallel or sequential
+    if (!quiet) message("Package 'doParallel' not installed; running without a registered foreach backend.")
+  }
 
   pids <- parallel::parSapply(cl, 1:num_cores, function(x) Sys.getpid())
   pid_arg <- paste(pids, collapse = ",")

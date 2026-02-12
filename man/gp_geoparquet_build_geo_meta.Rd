@@ -29,7 +29,7 @@ gp_geoparquet_build_geo_meta(
 - a character vector applied to all geometry columns, or
 - a named list keyed by geometry column.}
 
-\item{crs}{CRS as PROJJSON (list) or a string convertible via `sf::st_crs()`.}
+\item{crs}{CRS as PROJJSON (list) or a string convertible via \code{sf::st_crs()}.}
 
 \item{edges}{`"planar"` or `"spherical"`.}
 
