@@ -4,12 +4,7 @@
 \alias{dp_read_meta}
 \title{Read Dataplane metadata from a Parquet file (metadata-only)}
 \usage{
-dp_read_meta(
-  path,
-  parse = TRUE,
-  preferred_prefix = "dp",
-  legacy_prefixes = c("klimo")
-)
+dp_read_meta(path, parse = TRUE, preferred_prefix = "dp")
 }
 \arguments{
 \item{path}{Path to a Parquet file.}
@@ -18,8 +13,6 @@ dp_read_meta(
 and `audit_dt`.}
 
 \item{preferred_prefix}{Preferred metadata prefix (default `"dp"`).}
-
-\item{legacy_prefixes}{Optional legacy prefixes to search (default `"klimo"`).}
 }
 \value{
 A list with:

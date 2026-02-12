@@ -7,10 +7,9 @@
 dp_open(
   path,
   metadata = c("sidecar", "none"),
-  ignore_prefixes = c("_dp_", "_klimo_"),
+  ignore_prefixes = c("_dp_"),
   exclude_invalid_files = TRUE,
   preferred_prefix = "dp",
-  legacy_prefixes = c("klimo"),
   ...
 )
 }
@@ -19,13 +18,11 @@ dp_open(
 
 \item{metadata}{`"sidecar"` or `"none"`. If `"sidecar"`, also read dataset metadata.}
 
-\item{ignore_prefixes}{File prefixes to ignore when opening dataset (default includes `_dp_`, `_klimo_`).}
+\item{ignore_prefixes}{File prefixes to ignore when opening dataset (default includes `_dp_`).}
 
 \item{exclude_invalid_files}{Passed to Arrow dataset factory options.}
 
 \item{preferred_prefix}{Preferred metadata prefix (default `"dp"`).}
-
-\item{legacy_prefixes}{Optional legacy prefixes.}
 
 \item{...}{Passed to [arrow::open_dataset()].}
 }

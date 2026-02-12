@@ -8,7 +8,6 @@ dp_read_dataset_meta(
   dataset_path,
   parse = TRUE,
   preferred_prefix = "dp",
-  legacy_prefixes = c("klimo"),
   sidecar_names = NULL
 )
 }
@@ -18,8 +17,6 @@ dp_read_dataset_meta(
 \item{parse}{Logical. If `TRUE`, parse serialized payloads into `spec_dt`/`audit_dt`.}
 
 \item{preferred_prefix}{Preferred metadata prefix (default `"dp"`).}
-
-\item{legacy_prefixes}{Optional legacy prefixes (default `"klimo"`).}
 
 \item{sidecar_names}{Optional vector of sidecar names to look for.}
 }

@@ -7,7 +7,6 @@
 dp_detect(
   path,
   preferred_prefix = "dp",
-  legacy_prefixes = c("klimo"),
   mode = c("detect", "validate"),
   scan_n = 5L,
   recursive = TRUE
@@ -17,8 +16,6 @@ dp_detect(
 \item{path}{Path to a Parquet file or dataset directory.}
 
 \item{preferred_prefix}{Preferred metadata prefix (default `"dp"`).}
-
-\item{legacy_prefixes}{Optional legacy prefixes.}
 
 \item{mode}{`"detect"` or `"validate"`. `"validate"` uses a stricter threshold.}
 

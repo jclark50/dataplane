@@ -10,7 +10,6 @@ dp_read(
   keep_storage = TRUE,
   attach_units = c("declared", "none"),
   preferred_prefix = "dp",
-  legacy_prefixes = c("klimo"),
   unit_attr = "units",
   ...
 )
@@ -26,8 +25,6 @@ dp_read(
 based on the stored spec.}
 
 \item{preferred_prefix}{Preferred metadata prefix (default `"dp"`).}
-
-\item{legacy_prefixes}{Optional legacy prefixes (default `"klimo"`).}
 
 \item{unit_attr}{Unit attribute name (default `"units"`).}
 
