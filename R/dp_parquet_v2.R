@@ -5,7 +5,6 @@
 # Public API (exported)
 # - dp_spec() [alias], dp_spec_default(), dp_set_units(), dp_set_scale()
 # - dp_tag_units(), dp_check_units()
-# - dp_scale_encode(), dp_scale_decode()
 # - dp_read_meta(), dp_write(), dp_read()
 # - dp_write_dataset_meta(), dp_read_dataset_meta(), dp_write_dataset(), dp_open()
 # - dp_detect(), dp_print_detect()
@@ -127,7 +126,7 @@
   out
 }
 
-.dp_meta_pick_prefix <- function(kv_names, preferred = "dp", fallbacks = c("klimo")) {
+.dp_meta_pick_prefix <- function(kv_names, preferred = "dp") {
   kv_names <- as.character(kv_names %||% character())
   prefixes <- unique(c(preferred, fallbacks))
   prefixes <- prefixes[!is.na(prefixes) & nzchar(prefixes)]
@@ -201,14 +200,14 @@
   kv
 }
 
-.dp_meta_unpack_kv <- function(kv, preferred_prefix = "dp", legacy_prefixes = c("klimo"), parse = TRUE) {
+.dp_meta_unpack_kv <- function(kv, preferred_prefix = "dp", parse = TRUE) {
   .dp_require("data.table")
   .dp_require("jsonlite")
   
   kv <- kv %||% list()
   if (!is.list(kv)) .dp_stop(".dp_meta_unpack_kv(): kv must be a list.")
   
-  prefix <- .dp_meta_pick_prefix(names(kv), preferred = preferred_prefix, fallbacks = legacy_prefixes)
+  prefix <- .dp_meta_pick_prefix(names(kv), preferred = preferred_prefix)
   keys <- .dp_meta_keys(prefix)
   
   out <- list(
@@ -1001,7 +1000,6 @@ dp_scale_decode <- function(dt, audit_dt, keep_storage = TRUE, overwrite = FALSE
 #' @param parse Logical. If `TRUE`, parse serialized payloads into `spec_dt`
 #'   and `audit_dt`.
 #' @param preferred_prefix Preferred metadata prefix (default `"dp"`).
-#' @param legacy_prefixes Optional legacy prefixes to search (default `"klimo"`).
 #'
 #' @return A list with:
 #' - `prefix`: detected prefix
@@ -1016,9 +1014,9 @@ dp_scale_decode <- function(dt, audit_dt, keep_storage = TRUE, overwrite = FALSE
 #' m <- dp_read_meta("file.parquet")
 #' names(m$kv)
 #' }
-dp_read_meta <- function(path, parse = TRUE, preferred_prefix = "dp", legacy_prefixes = c("klimo")) {
+dp_read_meta <- function(path, parse = TRUE, preferred_prefix = "dp") {
   kv <- .dp_read_parquet_kv(path)
-  .dp_meta_unpack_kv(kv, preferred_prefix = preferred_prefix, legacy_prefixes = legacy_prefixes, parse = parse)
+  .dp_meta_unpack_kv(kv, preferred_prefix = preferred_prefix, parse = parse)
 }
 
 
@@ -1089,12 +1087,11 @@ dp_write_dataset_meta <- function(dataset_path, kv, prefix = "dp", overwrite = T
 #' @param dataset_path Dataset directory path.
 #' @param parse Logical. If `TRUE`, parse serialized payloads into `spec_dt`/`audit_dt`.
 #' @param preferred_prefix Preferred metadata prefix (default `"dp"`).
-#' @param legacy_prefixes Optional legacy prefixes (default `"klimo"`).
 #' @param sidecar_names Optional vector of sidecar names to look for.
 #'
 #' @return Same structure as [dp_read_meta()], plus `sidecar_path`.
 #' @export
-dp_read_dataset_meta <- function(dataset_path, parse = TRUE, preferred_prefix = "dp", legacy_prefixes = c("klimo"), sidecar_names = NULL) {
+dp_read_dataset_meta <- function(dataset_path, parse = TRUE, preferred_prefix = "dp", sidecar_names = NULL) {
   .dp_require("arrow")
   
   if (is.null(sidecar_names)) {
@@ -1104,9 +1101,7 @@ dp_read_dataset_meta <- function(dataset_path, parse = TRUE, preferred_prefix = 
       paste0(preferred_prefix, "_metadata.parquet"),
       paste0("_", preferred_prefix, "_metadata.parquet")
     )
-    for (p in legacy_prefixes) {
-      sidecar_names <- c(sidecar_names, paste0(p, "_meta.parquet"), paste0("_", p, "_meta.parquet"))
-    }
+
     sidecar_names <- unique(sidecar_names)
   }
   
@@ -1114,7 +1109,7 @@ dp_read_dataset_meta <- function(dataset_path, parse = TRUE, preferred_prefix = 
   candidates <- candidates[file.exists(candidates)]
   
   if (!length(candidates)) {
-    out <- .dp_meta_unpack_kv(list(), preferred_prefix = preferred_prefix, legacy_prefixes = legacy_prefixes, parse = FALSE)
+    out <- .dp_meta_unpack_kv(list(), preferred_prefix = preferred_prefix, parse = FALSE)
     out$sidecar_path <- NA_character_
     out$spec_dt <- NULL
     out$audit_dt <- NULL
@@ -1124,8 +1119,7 @@ dp_read_dataset_meta <- function(dataset_path, parse = TRUE, preferred_prefix = 
   meta <- dp_read_meta(
     path = candidates[1],
     parse = parse,
-    preferred_prefix = preferred_prefix,
-    legacy_prefixes = legacy_prefixes
+    preferred_prefix = preferred_prefix
   )
   meta$sidecar_path <- candidates[1]
   meta
@@ -1318,7 +1312,6 @@ dp_write <- function(
 #' @param attach_units `"declared"` or `"none"`. If `"declared"`, attach unit attributes
 #'   based on the stored spec.
 #' @param preferred_prefix Preferred metadata prefix (default `"dp"`).
-#' @param legacy_prefixes Optional legacy prefixes (default `"klimo"`).
 #' @param unit_attr Unit attribute name (default `"units"`).
 #' @param ... Passed to [arrow::read_parquet()].
 #'
@@ -1332,7 +1325,6 @@ dp_read <- function(
     keep_storage = TRUE,
     attach_units = c("declared", "none"),
     preferred_prefix = "dp",
-    legacy_prefixes = c("klimo"),
     unit_attr = "units",
     ...
 ) {
@@ -1344,8 +1336,7 @@ dp_read <- function(
   meta <- dp_read_meta(
     path = path,
     parse = TRUE,
-    preferred_prefix = preferred_prefix,
-    legacy_prefixes = legacy_prefixes
+    preferred_prefix = preferred_prefix
   )
   
   dt <- arrow::read_parquet(path, as_data_frame = TRUE, ...)
@@ -1377,7 +1368,7 @@ dp_read <- function(
 # 8) Public I/O: dp_open() / dp_write_dataset()
 # =============================================================================
 
-.dp_dataset_factory_options <- function(ignore_prefixes = c("_dp_", "_klimo_"), exclude_invalid_files = TRUE) {
+.dp_dataset_factory_options <- function(ignore_prefixes = c("_dp_"), exclude_invalid_files = TRUE) {
   .dp_require("arrow")
   
   ignore_prefixes <- as.character(ignore_prefixes)
@@ -1402,10 +1393,9 @@ dp_read <- function(
 #'
 #' @param path Dataset directory path.
 #' @param metadata `"sidecar"` or `"none"`. If `"sidecar"`, also read dataset metadata.
-#' @param ignore_prefixes File prefixes to ignore when opening dataset (default includes `_dp_`, `_klimo_`).
+#' @param ignore_prefixes File prefixes to ignore when opening dataset (default includes `_dp_`).
 #' @param exclude_invalid_files Passed to Arrow dataset factory options.
 #' @param preferred_prefix Preferred metadata prefix (default `"dp"`).
-#' @param legacy_prefixes Optional legacy prefixes.
 #' @param ... Passed to [arrow::open_dataset()].
 #'
 #' @return If `metadata="none"`, an Arrow Dataset. If `metadata="sidecar"`, a list:
@@ -1415,10 +1405,9 @@ dp_read <- function(
 dp_open <- function(
     path,
     metadata = c("sidecar", "none"),
-    ignore_prefixes = c("_dp_", "_klimo_"),
+    ignore_prefixes = c("_dp_"),
     exclude_invalid_files = TRUE,
     preferred_prefix = "dp",
-    legacy_prefixes = c("klimo"),
     ...
 ) {
   .dp_require("arrow")
@@ -1438,8 +1427,7 @@ dp_open <- function(
   meta <- dp_read_dataset_meta(
     dataset_path = path,
     parse = TRUE,
-    preferred_prefix = preferred_prefix,
-    legacy_prefixes = legacy_prefixes
+    preferred_prefix = preferred_prefix
   )
   
   list(ds = ds, meta = meta)
@@ -1620,7 +1608,7 @@ dp_write_dataset <- function(
 
 .dp_detect_from_keys <- function(
     keys,
-    prefixes = c("dp", "klimo"),
+    prefixes = c("dp"),
     min_score_detect = 2L,
     min_score_validate = 4L
 ) {
@@ -1691,14 +1679,14 @@ dp_write_dataset <- function(
   )
 }
 
-.dp_detect_parquet_file <- function(path, preferred_prefix = "dp", legacy_prefixes = c("klimo"), mode = c("detect", "validate")) {
+.dp_detect_parquet_file <- function(path, preferred_prefix = "dp", mode = c("detect", "validate")) {
   .dp_require("arrow")
   
   mode <- match.arg(mode)
   path <- normalizePath(path, winslash = "/", mustWork = TRUE)
   
   kv <- tryCatch(.dp_read_parquet_kv(path), error = function(e) list())
-  prefixes <- unique(c(preferred_prefix, legacy_prefixes))
+  prefixes <- unique(c(preferred_prefix))
   
   out <- .dp_detect_from_keys(names(kv), prefixes = prefixes, min_score_detect = 2L, min_score_validate = 4L)
   
@@ -1715,7 +1703,6 @@ dp_write_dataset <- function(
 .dp_detect_dataset_dir <- function(
     dir,
     preferred_prefix = "dp",
-    legacy_prefixes = c("klimo"),
     mode = c("detect", "validate"),
     sidecar_names = NULL,
     scan_n = 5L,
@@ -1734,9 +1721,6 @@ dp_write_dataset <- function(
       paste0(preferred_prefix, "_metadata.parquet"),
       paste0("_", preferred_prefix, "_metadata.parquet")
     ))
-    for (p in legacy_prefixes) {
-      sidecar_names <- unique(c(sidecar_names, paste0(p, "_meta.parquet"), paste0("_", p, "_meta.parquet")))
-    }
   }
   
   sidecar_paths <- file.path(dir, sidecar_names)
@@ -1747,7 +1731,6 @@ dp_write_dataset <- function(
     file_res <- .dp_detect_parquet_file(
       path = sc,
       preferred_prefix = preferred_prefix,
-      legacy_prefixes = legacy_prefixes,
       mode = mode
     )
     file_res$kind <- "dataset_sidecar"
@@ -1781,7 +1764,6 @@ dp_write_dataset <- function(
     .dp_detect_parquet_file(
       path = fp,
       preferred_prefix = preferred_prefix,
-      legacy_prefixes = legacy_prefixes,
       mode = mode
     )
   })
@@ -1816,7 +1798,6 @@ dp_write_dataset <- function(
 #'
 #' @param path Path to a Parquet file or dataset directory.
 #' @param preferred_prefix Preferred metadata prefix (default `"dp"`).
-#' @param legacy_prefixes Optional legacy prefixes.
 #' @param mode `"detect"` or `"validate"`. `"validate"` uses a stricter threshold.
 #' @param scan_n For dataset directories without a sidecar, number of Parquet files to sample.
 #' @param recursive For dataset directories, whether to scan recursively for Parquet files.
@@ -1832,7 +1813,6 @@ dp_write_dataset <- function(
 dp_detect <- function(
     path,
     preferred_prefix = "dp",
-    legacy_prefixes = c("klimo"),
     mode = c("detect", "validate"),
     scan_n = 5L,
     recursive = TRUE
@@ -1847,7 +1827,6 @@ dp_detect <- function(
     return(.dp_detect_dataset_dir(
       dir = path,
       preferred_prefix = preferred_prefix,
-      legacy_prefixes = legacy_prefixes,
       mode = mode,
       scan_n = scan_n,
       recursive = recursive
@@ -1857,7 +1836,6 @@ dp_detect <- function(
   .dp_detect_parquet_file(
     path = path,
     preferred_prefix = preferred_prefix,
-    legacy_prefixes = legacy_prefixes,
     mode = mode
   )
 }
