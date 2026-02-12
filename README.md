@@ -15,8 +15,7 @@ Dataplane stores this information as lightweight metadata alongside your data, s
 
 > **Package manual (CRAN-style PDF):**  
 > For a complete function reference in the standard R “package manual” format, see PDF under /docs:  
-> https://github.com/jclark50/dataplane/blob/main/docs/dataplane_1.0.0.pdf
-
+> https://github.com/jclark50/weathertools/blob/main/docs/weathertools_1.0.0.pdf
 
 To install: 
 ``` r
