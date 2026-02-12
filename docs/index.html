@@ -21,17 +21,21 @@
 
     * { box-sizing: border-box; }
     html, body { height: 100%; }
-    body {
-      margin: 0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
-      color: var(--text);
-background:
-  radial-gradient(1100px 500px at 15% 10%, rgba(56,189,248,0.18), transparent 60%),
-  radial-gradient(900px 500px at 80% 20%, rgba(168,85,247,0.14), transparent 65%),
-  radial-gradient(1000px 700px at 50% 95%, rgba(34,197,94,0.06), transparent 60%),
-  var(--bg);
-      line-height: 1.45;
-    }
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  color: var(--text);
+
+  /* Calmer background: lower saturation/contrast + subtle dark overlay */
+  background:
+    linear-gradient(180deg, rgba(11,18,32,0.92), rgba(11,18,32,0.92)),
+    radial-gradient(1100px 500px at 15% 10%, rgba(56,189,248,0.16), transparent 60%),
+    radial-gradient(900px 500px at 80% 20%, rgba(168,85,247,0.12), transparent 65%),
+    radial-gradient(1000px 700px at 50% 95%, rgba(34,197,94,0.06), transparent 60%),
+    var(--bg);
+
+  line-height: 1.45;
+}
 
     a { color: var(--link); text-decoration: none; }
     a:hover { text-decoration: underline; }
