@@ -7,7 +7,7 @@ Description: Tools for structuring, validating, and transforming datasets with a
 License: MIT + file LICENSE
 Encoding: UTF-8
 RoxygenNote: 7.3.3
-URL: https://github.com/jclark50/dataplane
+URL: https://jclark50.github.io/dataplane/, https://github.com/jclark50/dataplane
 BugReports: https://github.com/jclark50/dataplane/issues
 Imports: 
     arrow,

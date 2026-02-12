@@ -1,80 +1,111 @@
-# internal state (no roxygen here; do NOT put this before @export)
-#.jj_timers <- new.env(parent = emptyenv())
+# =============================================================================
+# timed.R — simple script timer
+# =============================================================================
 
-.timers_env <- new.env(parent = emptyenv())
 #' timed: simple script timer
 #'
-#' Start/stop a single unnamed timer for the whole script. Prints start/finish
-#' timestamps and elapsed time. Optionally returns the timestamp/elapsed.
+#' Start/stop timers and print start/finish timestamps plus elapsed time.
+#' Supports:
+#' - a single unnamed script timer (default), and
+#' - optional labeled timers (multiple independent timers).
 #'
-#' @param what One of "start", "end", or "stop".
+#' @param action Character(1). One of "start", "end", or "stop".
+#'   ("stop" is treated as "end".)
+#' @param label Character(1) or NULL. Optional label to manage independent timers.
+#'   If NULL (default), an unnamed script timer is used.
 #' @param round Integer(1). Decimal places for rounding elapsed time. Default 2.
-#' @param ret   Logical(1). If TRUE, returns start time (on "start") or elapsed
-#'   difftime (on "end"/"stop"). Default FALSE.
+#' @param ret Logical(1). If TRUE, returns the start time (on "start") or the
+#'   elapsed difftime (on "end"/"stop"). Default FALSE.
 #'
-#' @return Invisibly NULL by default; if `ret = TRUE`, a POSIXct (start) or
-#'   difftime (end/stop).
+#' @return Invisibly NULL by default. If `ret = TRUE`, returns a POSIXct start time
+#'   (on "start") or a difftime elapsed duration (on "end"/"stop").
+#'
 #' @examples
 #' timed("start"); Sys.sleep(0.2); timed("end")
+#' timed("start", label = "download"); Sys.sleep(0.1); timed("stop", label = "download")
 #' @export
 timed <- local({
-    .timers_env <- new.env(parent = emptyenv())
-    
-    function(action, label = NULL, round = 2, ret = FALSE) {
-      action <- match.arg(action, c("start", "end", "stop"))
-      if (action == "stop") action <- "end"
-      
-      has_crayon <- requireNamespace("crayon", quietly = TRUE)
-      
-      if (has_crayon) {
-        options(crayon.enabled = TRUE)
-        if (!nzchar(Sys.getenv("R_CRAYON_ENABLED"))) Sys.setenv(R_CRAYON_ENABLED = "TRUE")
-      }
-      
-      green <- if (has_crayon) crayon::green else function(x) x
-      red   <- if (has_crayon) crayon::red   else function(x) x
-      
-      if (is.null(label)) {
-        if (action == "start") {
-          .timers_env[["__unnamed__"]] <- Sys.time()
-          cat("Script started at:", green(format(.timers_env[["__unnamed__"]])), "\n")
-          if (ret) return(.timers_env[["__unnamed__"]])
-        } else {
-          st <- .timers_env[["__unnamed__"]]
-          if (is.null(st)) return(NULL)
-          et <- Sys.time()
-          elapsed <- et - st
-          cat("Script finished at", green(format(et)),
-              "after", green(round(elapsed, round)), units(elapsed), "\n")
-          rm(list = "__unnamed__", envir = .timers_env)
-          if (ret) return(elapsed)
-        }
+  timers_env <- new.env(parent = emptyenv())
+
+  function(action, label = NULL, round = 2, ret = FALSE) {
+    action <- match.arg(action, c("start", "end", "stop"))
+    if (identical(action, "stop")) action <- "end"
+
+    has_crayon <- requireNamespace("crayon", quietly = TRUE)
+
+    # Keep coloring best-effort + non-fatal; do not require crayon.
+    if (has_crayon) {
+      options(crayon.enabled = TRUE)
+      if (!nzchar(Sys.getenv("R_CRAYON_ENABLED"))) Sys.setenv(R_CRAYON_ENABLED = "TRUE")
+    }
+
+    green <- if (has_crayon) crayon::green else function(x) x
+    red   <- if (has_crayon) crayon::red   else function(x) x
+
+    # -------------------------------------------------------------------------
+    # Unnamed (script-wide) timer
+    # -------------------------------------------------------------------------
+    if (is.null(label)) {
+      key <- "__unnamed__"
+
+      if (identical(action, "start")) {
+        timers_env[[key]] <- Sys.time()
+        cat("Script started at:", green(format(timers_env[[key]])), "\n")
+        if (isTRUE(ret)) return(timers_env[[key]])
         return(invisible(NULL))
       }
-      
-      lbl <- paste0("[", label, "]")
-      lbl_col <- red(lbl)
-      
-      if (action == "start") {
-        .timers_env[[label]] <- Sys.time()
-        cat(sprintf("%s started at %s\n",
-                    lbl_col,
-                    green(format(.timers_env[[label]], "%H:%M:%OS3"))))
-        if (ret) return(.timers_env[[label]])
-      } else {
-        st <- .timers_env[[label]]
-        if (is.null(st)) return(NULL)
-        et <- Sys.time()
-        elapsed <- et - st
-        cat(sprintf("%s finished at %s after %s %s\n",
-                    lbl_col,
-                    green(format(et, "%H:%M:%OS3")),
-                    green(round(elapsed, round)),
-                    attr(elapsed, "units")))
-        rm(list = label, envir = .timers_env)
-        if (ret) return(elapsed)
-      }
-      
-      invisible(NULL)
+
+      st <- timers_env[[key]]
+      if (is.null(st)) return(invisible(NULL))
+
+      et <- Sys.time()
+      elapsed <- et - st
+
+      cat(
+        "Script finished at", green(format(et)),
+        "after", green(round(elapsed, round)), units(elapsed), "\n"
+      )
+
+      rm(list = key, envir = timers_env)
+
+      if (isTRUE(ret)) return(elapsed)
+      return(invisible(NULL))
     }
+
+    # -------------------------------------------------------------------------
+    # Labeled timers (multiple independent timers)
+    # -------------------------------------------------------------------------
+    lbl <- paste0("[", label, "]")
+    lbl_col <- red(lbl)
+
+    if (identical(action, "start")) {
+      timers_env[[label]] <- Sys.time()
+      cat(sprintf(
+        "%s started at %s\n",
+        lbl_col,
+        green(format(timers_env[[label]], "%H:%M:%OS3"))
+      ))
+      if (isTRUE(ret)) return(timers_env[[label]])
+      return(invisible(NULL))
+    }
+
+    st <- timers_env[[label]]
+    if (is.null(st)) return(invisible(NULL))
+
+    et <- Sys.time()
+    elapsed <- et - st
+
+    cat(sprintf(
+      "%s finished at %s after %s %s\n",
+      lbl_col,
+      green(format(et, "%H:%M:%OS3")),
+      green(round(elapsed, round)),
+      attr(elapsed, "units")
+    ))
+
+    rm(list = label, envir = timers_env)
+
+    if (isTRUE(ret)) return(elapsed)
+    invisible(NULL)
+  }
 })
