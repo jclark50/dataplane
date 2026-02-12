@@ -17,8 +17,6 @@ Dataplane stores this information as lightweight metadata alongside your data, s
 ---
 
 To install: 
-
-=======
 ``` r
 devtools::install_github("jclark50/dataplane")
 # OR
