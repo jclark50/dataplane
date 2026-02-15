@@ -19,8 +19,8 @@ Imports:
     jsonlite,
     aws.s3,
     lubridate,
-	Rcpp
-LinkingTo: Rcpp
+    Rcpp
+LinkingTo: Rcpp, RcppParallel
 Suggests:
     knitr,
     rmarkdown,
