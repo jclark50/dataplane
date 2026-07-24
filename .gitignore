@@ -8,3 +8,6 @@
 /Meta/
 data.plane.Rproj
 install_notes.R
+# Native build products are platform-specific and must be rebuilt on install.
+src/*.o
+src/*.dll
