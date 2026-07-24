@@ -1,8 +1,272 @@
+.dp_delta_config_file <- function() {
+  file.path(tools::R_user_dir("dataplane", "config"), "delta-python")
+}
+
+.dp_delta_managed_dir <- function() {
+  file.path(tools::R_user_dir("dataplane", "cache"), "delta-python")
+}
+
+.dp_delta_venv_python <- function(env_dir) {
+  if (.Platform$OS.type == "windows") {
+    file.path(env_dir, "Scripts", "python.exe")
+  } else {
+    file.path(env_dir, "bin", "python")
+  }
+}
+
+.dp_delta_saved_python <- function() {
+  config_file <- .dp_delta_config_file()
+  if (!file.exists(config_file)) return("")
+  value <- tryCatch(
+    trimws(readLines(config_file, warn = FALSE, n = 1L)),
+    error = function(e) ""
+  )
+  if (length(value) && nzchar(value[[1]])) value[[1]] else ""
+}
+
+.dp_delta_resolve_python <- function(candidates) {
+  candidates <- unique(as.character(candidates))
+  candidates <- candidates[!is.na(candidates) & nzchar(candidates)]
+  for (candidate in candidates) {
+    expanded <- path.expand(candidate)
+    resolved <- if (file.exists(expanded)) expanded else Sys.which(candidate)
+    if (length(resolved) && nzchar(resolved[[1]]) && file.exists(resolved[[1]])) {
+      resolved <- normalizePath(resolved[[1]], winslash = "/", mustWork = TRUE)
+      probe <- tryCatch(
+        suppressWarnings(system2(
+          resolved,
+          "--version",
+          stdout = TRUE,
+          stderr = TRUE
+        )),
+        error = function(e) structure(conditionMessage(e), status = 1L)
+      )
+      status <- attr(probe, "status")
+      if (is.null(status)) status <- 0L
+      if (status == 0L) return(resolved)
+    }
+  }
+  ""
+}
+
+.dp_delta_run <- function(python, args) {
+  output <- tryCatch(
+    suppressWarnings(system2(
+      python,
+      args,
+      stdout = TRUE,
+      stderr = TRUE
+    )),
+    error = function(e) structure(conditionMessage(e), status = 1L)
+  )
+  status <- attr(output, "status")
+  if (is.null(status)) status <- 0L
+  list(status = as.integer(status), output = output)
+}
+
+.dp_delta_save_python <- function(python) {
+  config_file <- .dp_delta_config_file()
+  dir.create(dirname(config_file), recursive = TRUE, showWarnings = FALSE)
+  if (!dir.exists(dirname(config_file))) {
+    .dp_stop("Could not create Dataplane configuration directory: %s", dirname(config_file))
+  }
+  temporary <- tempfile("delta-python-", tmpdir = dirname(config_file))
+  on.exit(unlink(temporary, force = TRUE), add = TRUE)
+  writeLines(python, temporary, useBytes = TRUE)
+  if (!file.copy(temporary, config_file, overwrite = TRUE)) {
+    .dp_stop("Could not save the managed Python path: %s", config_file)
+  }
+  invisible(config_file)
+}
+
+
+#' Set up a private Python environment for delta-encoded Parquet
+#'
+#' Creates or reuses a Dataplane-managed Python virtual environment, installs a
+#' compatible PyArrow release, validates the explicit Parquet encodings with a
+#' lossless round trip, and saves the environment for future R sessions.
+#'
+#' This function is deliberately opt-in because it downloads a Python package.
+#' It does not modify the system Python environment.
+#'
+#' @param python Optional base Python executable used to create the environment.
+#'   When omitted, `DATAPLANE_BOOTSTRAP_PYTHON`, `python3`, and `python` are
+#'   considered in that order.
+#' @param env_dir Optional virtual-environment directory. The default is a
+#'   Dataplane directory returned by [tools::R_user_dir()].
+#' @param pyarrow_version Optional exact PyArrow version, such as `"24.0.0"`.
+#'   The default installs a compatible release (`pyarrow>=14.0.0`).
+#' @param upgrade If `TRUE`, ask pip to upgrade an existing compatible PyArrow.
+#' @param recreate If `TRUE`, remove and recreate an existing managed virtual
+#'   environment. Removal is permitted only when `pyvenv.cfg` is present.
+#' @param validate If `TRUE`, write and fully read back a small delta-encoded
+#'   Parquet file before saving the configuration.
+#' @param quiet If `TRUE`, suppress progress messages from this function.
+#' @return Invisibly returns setup details, including the managed Python path
+#'   and installed PyArrow version.
+#' @export
+dp_delta_setup <- function(
+    python = NULL,
+    env_dir = NULL,
+    pyarrow_version = NULL,
+    upgrade = FALSE,
+    recreate = FALSE,
+    validate = TRUE,
+    quiet = FALSE) {
+  .dp_require("arrow")
+
+  for (argument in c("upgrade", "recreate", "validate", "quiet")) {
+    value <- get(argument)
+    if (!is.logical(value) || length(value) != 1L || is.na(value)) {
+      .dp_stop("dp_delta_setup(): `%s` must be TRUE or FALSE.", argument)
+    }
+  }
+  if (!is.null(pyarrow_version) &&
+      (!.dp_is_scalar_chr(pyarrow_version) ||
+       !grepl("^[0-9]+([.][0-9]+){1,3}$", pyarrow_version))) {
+    .dp_stop("dp_delta_setup(): `pyarrow_version` must look like \"24.0.0\".")
+  }
+
+  env_dir <- env_dir %||% .dp_delta_managed_dir()
+  if (!.dp_is_scalar_chr(env_dir)) {
+    .dp_stop("dp_delta_setup(): `env_dir` must be one non-empty path.")
+  }
+  env_dir <- normalizePath(path.expand(env_dir), winslash = "/", mustWork = FALSE)
+  env_python <- .dp_delta_venv_python(env_dir)
+
+  if (isTRUE(recreate) && dir.exists(env_dir)) {
+    marker <- file.path(env_dir, "pyvenv.cfg")
+    if (!file.exists(marker)) {
+      .dp_stop(
+        "dp_delta_setup(): refusing to remove `%s` because it is not a Python virtual environment.",
+        env_dir
+      )
+    }
+    unlink(env_dir, recursive = TRUE, force = TRUE)
+    if (dir.exists(env_dir)) {
+      .dp_stop("dp_delta_setup(): could not remove the existing environment: %s", env_dir)
+    }
+  }
+
+  created <- FALSE
+  if (!file.exists(env_python)) {
+    if (dir.exists(env_dir) && length(list.files(env_dir, all.files = TRUE, no.. = TRUE))) {
+      .dp_stop(
+        paste0(
+          "dp_delta_setup(): `%s` exists but is not a usable virtual environment. ",
+          "Choose another `env_dir` or use `recreate = TRUE` for a valid virtual environment."
+        ),
+        env_dir
+      )
+    }
+    base_python <- .dp_delta_resolve_python(c(
+      python,
+      Sys.getenv("DATAPLANE_BOOTSTRAP_PYTHON", unset = ""),
+      Sys.getenv("DATAPLANE_PYTHON", unset = ""),
+      "python3",
+      "python"
+    ))
+    if (!nzchar(base_python)) {
+      .dp_stop(
+        paste0(
+          "dp_delta_setup(): no base Python was found. Install Python 3 and its venv module, ",
+          "or supply `python = \"/path/to/python3\"`."
+        )
+      )
+    }
+    dir.create(dirname(env_dir), recursive = TRUE, showWarnings = FALSE)
+    if (!isTRUE(quiet)) message("Creating Dataplane Python environment at ", env_dir)
+    creation <- .dp_delta_run(
+      base_python,
+      c("-m", "venv", shQuote(env_dir))
+    )
+    if (creation$status != 0L || !file.exists(env_python)) {
+      unlink(env_dir, recursive = TRUE, force = TRUE)
+      .dp_stop(
+        paste0(
+          "dp_delta_setup(): virtual-environment creation failed. On Debian/Ubuntu, ",
+          "install `python3-venv`. Python reported:\n%s"
+        ),
+        paste(creation$output, collapse = "\n")
+      )
+    }
+    created <- TRUE
+  }
+
+  pip_check <- .dp_delta_run(env_python, c("-m", "pip", "--version"))
+  if (pip_check$status != 0L) {
+    ensure_pip <- .dp_delta_run(env_python, c("-m", "ensurepip", "--upgrade"))
+    if (ensure_pip$status != 0L) {
+      .dp_stop(
+        "dp_delta_setup(): pip is unavailable in the managed environment:\n%s",
+        paste(c(pip_check$output, ensure_pip$output), collapse = "\n")
+      )
+    }
+  }
+
+  requirement <- if (is.null(pyarrow_version)) {
+    "pyarrow>=14.0.0"
+  } else {
+    paste0("pyarrow==", pyarrow_version)
+  }
+  install_args <- c("-m", "pip", "install", "--disable-pip-version-check")
+  if (isTRUE(upgrade)) install_args <- c(install_args, "--upgrade")
+  install_args <- c(install_args, shQuote(requirement))
+  if (!isTRUE(quiet)) message("Installing ", requirement)
+  installation <- .dp_delta_run(env_python, install_args)
+  if (installation$status != 0L) {
+    .dp_stop(
+      "dp_delta_setup(): PyArrow installation failed:\n%s",
+      paste(installation$output, collapse = "\n")
+    )
+  }
+
+  check <- dp_delta_check(python = env_python)
+  if (!isTRUE(check$available)) {
+    .dp_stop("dp_delta_setup(): managed environment validation failed: %s", check$message)
+  }
+
+  if (isTRUE(validate)) {
+    smoke_path <- tempfile(fileext = ".parquet")
+    on.exit(unlink(smoke_path, force = TRUE), add = TRUE)
+    smoke_data <- data.frame(
+      id = 1:8,
+      value = c(1.5, NA_real_, seq(2, 7)),
+      label = rep(c("a", "b"), 4),
+      stringsAsFactors = FALSE
+    )
+    dp_write_parquet_delta(
+      smoke_data,
+      smoke_path,
+      python = env_python,
+      row_group_size = 4L,
+      validate_read = TRUE
+    )
+  }
+
+  config_file <- .dp_delta_save_python(env_python)
+  if (!isTRUE(quiet)) {
+    message("Dataplane delta backend is ready (PyArrow ", check$pyarrow_version, ").")
+  }
+  invisible(list(
+    available = TRUE,
+    created = created,
+    python = env_python,
+    env_dir = env_dir,
+    config_file = config_file,
+    pyarrow_version = check$pyarrow_version,
+    validated = isTRUE(validate)
+  ))
+}
+
+
 #' Check availability of the optional delta-Parquet backend
 #'
 #' @param python Optional path to a Python executable. Resolution otherwise uses
-#'   `getOption("dataplane.python")`, `DATAPLANE_PYTHON`, then `PATH`.
-#' @return A list describing whether Python, PyArrow, and the bundled helper are available.
+#'   `getOption("dataplane.python")`, `DATAPLANE_PYTHON`, the saved path from
+#'   [dp_delta_setup()], the default managed environment, then `PATH`.
+#' @return A list describing whether Python, PyArrow, required encoding support,
+#'   and the bundled helper are available.
 #' @export
 dp_delta_check <- function(python = NULL) {
   helper <- system.file("python", "write_delta_parquet.py", package = "dataplane")
@@ -15,12 +279,12 @@ dp_delta_check <- function(python = NULL) {
     python,
     getOption("dataplane.python", NULL),
     Sys.getenv("DATAPLANE_PYTHON", unset = ""),
-    Sys.which("python"),
-    Sys.which("python3")
+    .dp_delta_saved_python(),
+    .dp_delta_venv_python(.dp_delta_managed_dir()),
+    "python3",
+    "python"
   ))
-  candidates <- candidates[!is.na(candidates) & nzchar(candidates)]
-  existing <- candidates[file.exists(candidates)]
-  resolved_python <- if (length(existing)) normalizePath(existing[[1]], winslash = "/") else ""
+  resolved_python <- .dp_delta_resolve_python(candidates)
 
   result <- list(
     available = FALSE,
@@ -35,31 +299,35 @@ dp_delta_check <- function(python = NULL) {
   }
   if (!nzchar(resolved_python)) {
     result$message <- paste0(
-      "No Python executable was found. Supply `python=`, set option `dataplane.python`, ",
-      "or set DATAPLANE_PYTHON."
+      "No Python executable was found. Run `dp_delta_setup()`, supply `python=`, ",
+      "set option `dataplane.python`, or set DATAPLANE_PYTHON."
     )
     return(result)
   }
 
-  check <- suppressWarnings(system2(
+  check <- .dp_delta_run(
     resolved_python,
-    c("-c", shQuote("import pyarrow; print(pyarrow.__version__)")),
-    stdout = TRUE,
-    stderr = TRUE
-  ))
-  status <- attr(check, "status")
-  if (is.null(status)) status <- 0L
-  if (status != 0L) {
+    c(
+      "-c",
+      shQuote(paste0(
+        "import inspect, pyarrow; ",
+        "from pyarrow import parquet as pq; ",
+        "assert 'column_encoding' in inspect.signature(pq.ParquetWriter).parameters; ",
+        "print(pyarrow.__version__)"
+      ))
+    )
+  )
+  if (check$status != 0L) {
     result$message <- paste0(
-      "PyArrow is unavailable in ", resolved_python, ". Install it with: `",
-      resolved_python, " -m pip install pyarrow`. Python reported: ",
-      paste(check, collapse = " ")
+      "Compatible PyArrow is unavailable in ", resolved_python,
+      ". Run `dp_delta_setup()` or install a current PyArrow release. Python reported: ",
+      paste(check$output, collapse = " ")
     )
     return(result)
   }
 
   result$available <- TRUE
-  result$pyarrow_version <- if (length(check)) trimws(check[[1]]) else NA_character_
+  result$pyarrow_version <- if (length(check$output)) trimws(check$output[[1]]) else NA_character_
   result$message <- "Delta-Parquet backend is available."
   result
 }
@@ -203,4 +471,3 @@ dp_write_parquet_delta <- function(
     pyarrow_version = check$pyarrow_version
   ))
 }
-

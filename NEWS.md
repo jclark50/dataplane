@@ -1,3 +1,10 @@
+# dataplane 1.0.2
+
+* Added `dp_delta_setup()` to create, validate, and remember an isolated
+  PyArrow environment with one command.
+* Delta backend discovery now checks the saved managed environment and verifies
+  explicit Parquet encoding support.
+
 # dataplane 1.0.1
 
 * Added optional explicit delta-encoded Parquet writing through PyArrow with

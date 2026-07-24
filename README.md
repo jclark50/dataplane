@@ -553,15 +553,27 @@ tables benefit from explicit Parquet encodings. Integer columns use
 `DELTA_BINARY_PACKED`, floating-point columns use `BYTE_STREAM_SPLIT`, and
 character columns use dictionary encoding. These encodings are lossless.
 
-Configure a Python environment that contains PyArrow, then check it once:
+After installing Dataplane, create its private Python environment once:
 
 ```r
 library(data.table)
 library(dataplane)
 
-options(dataplane.python = "C:/path/to/python.exe")
+dp_delta_setup()
 dp_delta_check()
 ```
+
+`dp_delta_setup()` finds Python 3, creates an isolated environment in the
+user cache, installs a compatible PyArrow release, performs a lossless test
+write, and remembers that environment for later R sessions. It does not modify
+system Python. To select a base Python explicitly:
+
+```r
+dp_delta_setup(python = "/usr/bin/python3")
+```
+
+On Debian or Ubuntu, install `python3-venv` first if the standard Python
+installation does not include the virtual-environment module.
 
 Write any data frame or `data.table` directly:
 

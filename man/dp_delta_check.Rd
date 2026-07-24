@@ -8,10 +8,12 @@ dp_delta_check(python = NULL)
 }
 \arguments{
 \item{python}{Optional path to a Python executable. Resolution otherwise uses
-`getOption("dataplane.python")`, `DATAPLANE_PYTHON`, then `PATH`.}
+`getOption("dataplane.python")`, `DATAPLANE_PYTHON`, the saved path from
+[dp_delta_setup()], the default managed environment, then `PATH`.}
 }
 \value{
-A list describing whether Python, PyArrow, and the bundled helper are available.
+A list describing whether Python, PyArrow, required encoding support,
+  and the bundled helper are available.
 }
 \description{
 Check availability of the optional delta-Parquet backend

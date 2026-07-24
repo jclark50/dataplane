@@ -4,6 +4,28 @@ delta_backend_or_skip <- function() {
   check
 }
 
+test_that("managed delta setup validates arguments before changing the system", {
+  expect_error(
+    dataplane::dp_delta_setup(pyarrow_version = "latest"),
+    "must look like"
+  )
+  expect_error(
+    dataplane::dp_delta_setup(upgrade = NA),
+    "must be TRUE or FALSE"
+  )
+  expect_error(
+    dataplane::dp_delta_setup(env_dir = c("first", "second")),
+    "one non-empty path"
+  )
+})
+
+test_that("delta check verifies explicit-encoding support", {
+  check <- delta_backend_or_skip()
+  expect_true(check$available)
+  expect_true(nzchar(check$python))
+  expect_match(check$pyarrow_version, "^[0-9]+[.]")
+})
+
 test_that("delta writer preserves mixed Arrow values and nulls", {
   delta_backend_or_skip()
   path <- tempfile(fileext = ".parquet")

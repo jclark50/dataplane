@@ -1,6 +1,6 @@
 Package: dataplane
 Title: Data Architecture and Processing Helpers
-Version: 1.0.1
+Version: 1.0.2
 Authors@R: 
     person("Jordan", "Clark", email = "jordanjclark50@gmail.com", role = c("aut", "cre"))
 Description: Tools for structuring, validating, and transforming datasets with a focus on repeatable pipelines and clear metadata.
@@ -29,5 +29,5 @@ Suggests:
     doParallel,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
-SystemRequirements: Python 3 with PyArrow (optional, for delta-encoded Parquet writing)
+SystemRequirements: Python 3 with venv and pip (optional, for managed delta-encoded Parquet setup)
 VignetteBuilder: knitr
