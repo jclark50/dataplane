@@ -103,7 +103,8 @@
     write_format           = paste0(p, ":write_format"),
     partitioning           = paste0(p, ":partitioning"),
     existing_data_behavior = paste0(p, ":existing_data_behavior"),
-    sidecar_compression    = paste0(p, ":sidecar_compression")
+    sidecar_compression    = paste0(p, ":sidecar_compression"),
+    parquet_encoding       = paste0(p, ":parquet_encoding")
   )
 }
 
@@ -952,10 +953,11 @@ dp_scale_decode <- function(dt, audit_dt, keep_storage = TRUE, overwrite = FALSE
 .dp_read_parquet_kv <- function(path) {
   .dp_require("arrow")
   
-  # Try schema-first
+  # Use the public table API. Some Arrow R releases do not export
+  # read_parquet_schema(), and their ParquetFileReader metadata shape varies.
   kv <- tryCatch({
-    sch <- arrow::read_parquet_schema(path)
-    sch$metadata
+    tab <- arrow::read_parquet(path, as_data_frame = FALSE, col_select = character())
+    tab$schema$metadata
   }, error = function(e) NULL)
   
   # Fallback to ParquetFileReader
@@ -1151,6 +1153,15 @@ dp_read_dataset_meta <- function(dataset_path, parse = TRUE, preferred_prefix = 
 #' @param tag_missing_units Logical. If `TRUE`, apply [dp_tag_units()] before writing.
 #' @param prefix Metadata key prefix (default `"dp"`).
 #' @param compression Parquet compression (default `"zstd"`).
+#' @param parquet_encoding Parquet encoding backend. `"default"` uses
+#'   [arrow::write_parquet()]. `"delta"` uses [dp_write_parquet_delta()] while
+#'   preserving the same Dataplane schema metadata.
+#' @param python Optional Python executable used only when
+#'   `parquet_encoding = "delta"`.
+#' @param compression_level ZSTD level for delta encoding.
+#' @param row_group_size Number of rows per row group for delta encoding.
+#' @param validate_write If `TRUE`, fully read and compare a delta-encoded file
+#'   before finalizing it.
 #' @param unit_attr Unit attribute name to use (default `"units"`).
 #' @param warn_max Passed to [dp_check_units()].
 #' @param ... Passed to [arrow::write_parquet()].
@@ -1180,6 +1191,11 @@ dp_write <- function(
     tag_missing_units = FALSE,
     prefix = "dp",
     compression = "zstd",
+    parquet_encoding = c("default", "delta"),
+    python = NULL,
+    compression_level = 6L,
+    row_group_size = 1000000L,
+    validate_write = FALSE,
     unit_attr = "units",
     warn_max = 8L,
     ...
@@ -1188,6 +1204,17 @@ dp_write <- function(
   .dp_require("data.table")
   
   mode <- match.arg(mode)
+  parquet_encoding <- match.arg(parquet_encoding)
+  dots <- list(...)
+  if (identical(parquet_encoding, "delta") && length(dots)) {
+    .dp_stop(paste0(
+      "dp_write(): additional `...` arguments apply only to Arrow's default writer; ",
+      "use the named delta-writer arguments instead."
+    ))
+  }
+  if (identical(parquet_encoding, "delta") && !identical(tolower(compression), "zstd")) {
+    .dp_stop("dp_write(): the delta backend currently requires `compression = \"zstd\"`.")
+  }
   
   dt <- if (data.table::is.data.table(x)) data.table::copy(x) else data.table::as.data.table(x)
   
@@ -1279,9 +1306,14 @@ dp_write <- function(
   # ---- metadata kv ----
   keys <- .dp_meta_keys(prefix)
   extra <- .dp_kv_set(
-    keys$writer,       "dp_write",
-    keys$compression,  as.character(compression)[1],
-    keys$write_format, "parquet"
+    keys$writer,            "dp_write",
+    keys$compression,       if (identical(parquet_encoding, "delta")) {
+      paste0("zstd-", as.integer(compression_level))
+    } else {
+      as.character(compression)[1]
+    },
+    keys$write_format,      "parquet",
+    keys$parquet_encoding,  parquet_encoding
   )
   kv <- .dp_meta_pack_kv(spec = sp, audit_dt = audit, extra = extra, prefix = prefix)
   
@@ -1293,9 +1325,31 @@ dp_write <- function(
     tab$metadata <- kv
   }
   
-  arrow::write_parquet(tab, sink = path, compression = compression, ...)
+  write_result <- if (identical(parquet_encoding, "delta")) {
+    dp_write_parquet_delta(
+      tab,
+      path = path,
+      python = python,
+      compression_level = compression_level,
+      row_group_size = row_group_size,
+      validate_read = validate_write
+    )
+  } else {
+    do.call(
+      arrow::write_parquet,
+      c(list(x = tab, sink = path, compression = compression), dots)
+    )
+    NULL
+  }
   
-  invisible(list(path = path, spec = sp, audit = audit, kv = kv))
+  invisible(list(
+    path = path,
+    spec = sp,
+    audit = audit,
+    kv = kv,
+    parquet_encoding = parquet_encoding,
+    write_result = write_result
+  ))
 }
 
 # -----------------------------------------------------------------------------

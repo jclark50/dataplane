@@ -15,6 +15,11 @@ dp_write(
   tag_missing_units = FALSE,
   prefix = "dp",
   compression = "zstd",
+  parquet_encoding = c("default", "delta"),
+  python = NULL,
+  compression_level = 6L,
+  row_group_size = 1000000L,
+  validate_write = FALSE,
   unit_attr = "units",
   warn_max = 8L,
   ...
@@ -42,6 +47,20 @@ before writing (warns by default).}
 \item{prefix}{Metadata key prefix (default `"dp"`).}
 
 \item{compression}{Parquet compression (default `"zstd"`).}
+
+\item{parquet_encoding}{Parquet encoding backend. `"default"` uses
+[arrow::write_parquet()]. `"delta"` uses [dp_write_parquet_delta()] while
+preserving the same Dataplane schema metadata.}
+
+\item{python}{Optional Python executable used only when
+`parquet_encoding = "delta"`.}
+
+\item{compression_level}{ZSTD level for delta encoding.}
+
+\item{row_group_size}{Number of rows per row group for delta encoding.}
+
+\item{validate_write}{If `TRUE`, fully read and compare a delta-encoded file
+before finalizing it.}
 
 \item{unit_attr}{Unit attribute name to use (default `"units"`).}
 

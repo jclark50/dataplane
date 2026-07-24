@@ -546,6 +546,60 @@ meta
 
 ---
 
+## Explicit delta-encoded Parquet
+
+Dataplane can use PyArrow as an optional writing backend when integer-heavy
+tables benefit from explicit Parquet encodings. Integer columns use
+`DELTA_BINARY_PACKED`, floating-point columns use `BYTE_STREAM_SPLIT`, and
+character columns use dictionary encoding. These encodings are lossless.
+
+Configure a Python environment that contains PyArrow, then check it once:
+
+```r
+library(data.table)
+library(dataplane)
+
+options(dataplane.python = "C:/path/to/python.exe")
+dp_delta_check()
+```
+
+Write any data frame or `data.table` directly:
+
+```r
+dt <- data.table(
+  ptid = 1:100000,
+  date = rep(20240101L, 100000),
+  tmax_i = as.integer(round(300 + sin((1:100000) / 1000) * 20))
+)
+
+dp_write_parquet_delta(
+  dt,
+  "daily_temperature.parquet",
+  compression_level = 6,
+  validate_read = TRUE
+)
+```
+
+Or retain Dataplane specifications and embedded metadata through `dp_write()`:
+
+```r
+dp_write(
+  dt,
+  "daily_temperature.parquet",
+  spec = "metric",
+  parquet_encoding = "delta",
+  validate_write = TRUE
+)
+```
+
+The writer stages data through Arrow IPC, writes to a temporary Parquet file,
+optionally verifies every value and null, and replaces the destination only
+after the write succeeds. Compression gains depend on column order and data
+patterns; random integers may benefit less than ordered IDs, dates, or gridded
+measurements.
+
+---
+
 ## Recommended project conventions
 
 ### Prefix strategy
