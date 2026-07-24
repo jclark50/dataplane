@@ -1,88 +1,128 @@
 #' Check Available System RAM
 #'
-#' @description
-#' `check_ram` verifies that the system has at least the specified amount of
-#' free physical memory. It optionally retries up to `max_attempts`, waiting
-#' `wait_time` seconds between attempts. If the threshold is never met, the
-#' process exits with a non-zero status.
+#' Checks whether the system has at least a requested amount of available
+#' physical memory. The function returns `FALSE` after its final attempt instead
+#' of terminating the R session.
 #'
-#' @param threshold Numeric. Minimum amount of free memory required.
-#' @param unit Character. Unit for the threshold: one of `"B"`, `"KB"`,
-#'   `"MB"`, or `"GB"` (default `"MB"`).
-#' @param wait_time Numeric. Seconds to wait between retries (default 60).
-#' @param max_attempts Integer. Maximum number of attempts before quitting
-#'   the R session with status 1 (default 3).
+#' @param threshold Numeric scalar. Minimum available memory required.
+#' @param unit Character. One of `"B"`, `"KB"`, `"MB"`, or `"GB"`.
+#' @param wait_time Non-negative numeric scalar. Seconds between attempts.
+#' @param max_attempts Positive integer. Maximum number of checks.
+#' @param verbose If `TRUE`, report each check.
 #'
-#' @return Returns `TRUE` if available RAM meets or exceeds the threshold.
-#'   Otherwise, the session is terminated via `quit(status = 1)`.
-#'
-#' @details
-#' On Windows, uses `wmic OS get FreePhysicalMemory` to retrieve free RAM.
-#' On Unix-like systems, calls `free -b` and parses the "available" column.
+#' @return `TRUE` when the threshold is met and `FALSE` otherwise.
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' # Check for at least 2 GB of free memory, retrying up to 5 times
-#' check_ram(threshold = 2000, unit = "MB", wait_time = 30, max_attempts = 5)
-#' }
+#' check_ram(threshold = 1, unit = "MB", wait_time = 0, max_attempts = 1)
 check_ram <- function(threshold,
                       unit = "MB",
                       wait_time = 60,
-                      max_attempts = 3) {
-  # Convert threshold into bytes
-  multiplier <- switch(toupper(unit),
-                       "B"  = 1,
-                       "KB" = 1024,
-                       "MB" = 1024^2,
-                       "GB" = 1024^3,
-                       stop("Invalid unit. Use B, KB, MB, or GB."))
+                      max_attempts = 3,
+                      verbose = TRUE) {
+  if (!is.numeric(threshold) || length(threshold) != 1L ||
+      is.na(threshold) || !is.finite(threshold) || threshold < 0) {
+    stop("`threshold` must be one finite, non-negative number.", call. = FALSE)
+  }
+  if (!is.numeric(wait_time) || length(wait_time) != 1L ||
+      is.na(wait_time) || !is.finite(wait_time) || wait_time < 0) {
+    stop("`wait_time` must be one finite, non-negative number.", call. = FALSE)
+  }
+  max_attempts <- as.integer(max_attempts)
+  if (length(max_attempts) != 1L || is.na(max_attempts) || max_attempts < 1L) {
+    stop("`max_attempts` must be a positive integer.", call. = FALSE)
+  }
+  if (!is.logical(verbose) || length(verbose) != 1L || is.na(verbose)) {
+    stop("`verbose` must be TRUE or FALSE.", call. = FALSE)
+  }
+
+  multipliers <- c(B = 1, KB = 1024, MB = 1024^2, GB = 1024^3)
+  unit <- toupper(as.character(unit)[1])
+  if (!unit %in% names(multipliers)) {
+    stop("`unit` must be one of B, KB, MB, or GB.", call. = FALSE)
+  }
+  multiplier <- unname(multipliers[[unit]])
   threshold_bytes <- threshold * multiplier
 
-  # Internal helper to get free RAM in bytes
   get_available_ram <- function() {
-    if (.Platform$OS.type == "windows") {
-      mem_info <- system2("wmic",
-                          args = c("OS", "get", "FreePhysicalMemory", "/Value"),
-                          stdout = TRUE)
-      # Parse "FreePhysicalMemory=xxxx"
-      value_line <- grep("FreePhysicalMemory", mem_info, value = TRUE)
-      kb <- as.numeric(sub("FreePhysicalMemory=", "", value_line))
-      return(kb * 1024)
-    } else {
-      mem_info <- system2("free", args = c("-b"), stdout = TRUE)
-      # The 7th column of the second line is "available" on Linux
-      parts <- strsplit(mem_info[2], "\\s+")[[1]]
-      as.numeric(parts[7])
+    os <- Sys.info()[["sysname"]]
+
+    if (identical(os, "Linux") && file.exists("/proc/meminfo")) {
+      info <- readLines("/proc/meminfo", warn = FALSE)
+      line <- grep("^MemAvailable:", info, value = TRUE)
+      if (!length(line)) line <- grep("^MemFree:", info, value = TRUE)
+      if (!length(line)) {
+        stop("Linux memory information did not contain an available-memory field.")
+      }
+      value_kb <- suppressWarnings(as.numeric(sub(
+        "^[^0-9]*([0-9]+).*$", "\\1", line[[1]]
+      )))
+      return(value_kb * 1024)
     }
+
+    if (identical(os, "Windows")) {
+      command <- paste(
+        "(Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory",
+        sep = ""
+      )
+      output <- suppressWarnings(system2(
+        "powershell",
+        c("-NoProfile", "-NonInteractive", "-Command", shQuote(command)),
+        stdout = TRUE,
+        stderr = TRUE
+      ))
+      status <- attr(output, "status")
+      if (is.null(status)) status <- 0L
+      value_kb <- if (length(output)) {
+        suppressWarnings(as.numeric(trimws(output[[1]])))
+      } else {
+        NA_real_
+      }
+      if (status == 0L && is.finite(value_kb)) return(value_kb * 1024)
+    }
+
+    if (identical(os, "Darwin")) {
+      output <- suppressWarnings(system2(
+        "vm_stat", stdout = TRUE, stderr = TRUE
+      ))
+      status <- attr(output, "status")
+      if (is.null(status)) status <- 0L
+      if (status == 0L && length(output) > 1L) {
+        page_size <- suppressWarnings(as.numeric(sub(
+          ".*page size of ([0-9]+) bytes.*", "\\1", output[[1]]
+        )))
+        fields <- c("Pages free", "Pages inactive", "Pages speculative")
+        pages <- vapply(fields, function(field) {
+          line <- grep(paste0("^", field, ":"), output, value = TRUE)
+          if (!length(line)) return(0)
+          suppressWarnings(as.numeric(gsub("[^0-9]", "", line[[1]])))
+        }, numeric(1))
+        if (is.finite(page_size) && all(is.finite(pages))) {
+          return(sum(pages) * page_size)
+        }
+      }
+    }
+
+    stop(
+      "Available RAM could not be determined on this system.",
+      call. = FALSE
+    )
   }
 
   for (attempt in seq_len(max_attempts)) {
     available_bytes <- get_available_ram()
     available <- available_bytes / multiplier
 
-    if (available_bytes >= threshold_bytes) {
-      cat(sprintf("Attempt %d: Available RAM = %s %s >= threshold %s %s\n", 
-                  attempt,
-                  format(available, big.mark = ","),
-                  unit,
-                  threshold,
-                  unit))
-      return(TRUE)
+    if (isTRUE(verbose)) {
+      message(sprintf(
+        "Attempt %d: available RAM = %s %s; threshold = %s %s",
+        attempt, format(round(available, 2), big.mark = ","),
+        unit, threshold, unit
+      ))
     }
-
-    cat(sprintf("Attempt %d: Available RAM = %s %s < threshold %s %s; \
-        waiting %s seconds...\n",
-                attempt,
-                format(available, big.mark = ","),
-                unit,
-                threshold,
-                unit,
-                wait_time))
-    Sys.sleep(wait_time)
+    if (available_bytes >= threshold_bytes) return(TRUE)
+    if (attempt < max_attempts && wait_time > 0) Sys.sleep(wait_time)
   }
 
-  cat(sprintf("RAM availability remained below %s %s after %d attempts. Exiting.\n",
-              threshold, unit, max_attempts))
-  quit(save = "no", status = 1)
+  FALSE
 }

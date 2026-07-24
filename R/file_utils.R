@@ -106,7 +106,13 @@ s3_download_file <- function(key, bucket, fileext = ".rds") {
 #' @examples
 #' \dontrun{
 #' df <- s3_list_objects(bucket = "my-bucket", prefix = "data/2026-01-01/")
-#' newest <- s3_list_objects("my-bucket", prefix = "data/", order_by_last_modified = TRUE, return_tail = TRUE, tail_n = 5)
+#' newest <- s3_list_objects(
+#'   "my-bucket",
+#'   prefix = "data/",
+#'   order_by_last_modified = TRUE,
+#'   return_tail = TRUE,
+#'   tail_n = 5
+#' )
 #' }
 #'
 #' @importFrom stats runif
@@ -225,7 +231,7 @@ s3_list_objects <- function(bucket,
     if (n_new > 0L) {
       all_rows[[length(all_rows) + 1L]] <- page_df
       total_fetched <- total_fetched + n_new
-      next_marker <- tail(page_df$Key, 1)
+      next_marker <- utils::tail(page_df$Key, 1)
     }
     
     at <- attributes(page_res)

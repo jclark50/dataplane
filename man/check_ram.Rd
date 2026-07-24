@@ -4,36 +4,33 @@
 \alias{check_ram}
 \title{Check Available System RAM}
 \usage{
-check_ram(threshold, unit = "MB", wait_time = 60, max_attempts = 3)
+check_ram(
+  threshold,
+  unit = "MB",
+  wait_time = 60,
+  max_attempts = 3,
+  verbose = TRUE
+)
 }
 \arguments{
-\item{threshold}{Numeric. Minimum amount of free memory required.}
+\item{threshold}{Numeric scalar. Minimum available memory required.}
 
-\item{unit}{Character. Unit for the threshold: one of `"B"`, `"KB"`,
-`"MB"`, or `"GB"` (default `"MB"`).}
+\item{unit}{Character. One of `"B"`, `"KB"`, `"MB"`, or `"GB"`.}
 
-\item{wait_time}{Numeric. Seconds to wait between retries (default 60).}
+\item{wait_time}{Non-negative numeric scalar. Seconds between attempts.}
 
-\item{max_attempts}{Integer. Maximum number of attempts before quitting
-the R session with status 1 (default 3).}
+\item{max_attempts}{Positive integer. Maximum number of checks.}
+
+\item{verbose}{If `TRUE`, report each check.}
 }
 \value{
-Returns `TRUE` if available RAM meets or exceeds the threshold.
-  Otherwise, the session is terminated via `quit(status = 1)`.
+`TRUE` when the threshold is met and `FALSE` otherwise.
 }
 \description{
-`check_ram` verifies that the system has at least the specified amount of
-free physical memory. It optionally retries up to `max_attempts`, waiting
-`wait_time` seconds between attempts. If the threshold is never met, the
-process exits with a non-zero status.
-}
-\details{
-On Windows, uses `wmic OS get FreePhysicalMemory` to retrieve free RAM.
-On Unix-like systems, calls `free -b` and parses the "available" column.
+Checks whether the system has at least a requested amount of available
+physical memory. The function returns `FALSE` after its final attempt instead
+of terminating the R session.
 }
 \examples{
-\dontrun{
-# Check for at least 2 GB of free memory, retrying up to 5 times
-check_ram(threshold = 2000, unit = "MB", wait_time = 30, max_attempts = 5)
-}
+check_ram(threshold = 1, unit = "MB", wait_time = 0, max_attempts = 1)
 }

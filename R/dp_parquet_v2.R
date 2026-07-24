@@ -1,6 +1,6 @@
 # R/dp_parquet_v2.R
 # =============================================================================
-# dataplane v2 — Parquet + Dataset metadata + Scaling (public-friendly)
+# dataplane v2 - Parquet + Dataset metadata + Scaling
 # =============================================================================
 # Public API (exported)
 # - dp_spec() [alias], dp_spec_default(), dp_set_units(), dp_set_scale()
@@ -20,18 +20,6 @@
 # =============================================================================
 # 0) Small utilities (internal)
 # =============================================================================
-
-# `%||%` <- function(x, y) {
-#   if (is.null(x) || length(x) == 0L || is.na(x[[1]])) y else x[[1]]
-# }
-#' Null-coalescing operator
-#'
-#' @name null_coalesce
-#' @aliases %||%
-#' @rdname null_coalesce
-#' @export
-`%||%` <- function(x, y) if (!is.null(x)) x else y
-
 
 .dp_require <- function(pkg) {
   if (!requireNamespace(pkg, quietly = TRUE)) {
@@ -1429,8 +1417,9 @@ dp_read <- function(
   ignore_prefixes <- ignore_prefixes[!is.na(ignore_prefixes) & nzchar(ignore_prefixes)]
   if (!length(ignore_prefixes)) ignore_prefixes <- NULL
   
-  if (exists("dataset_factory_options", where = asNamespace("arrow"), mode = "function")) {
-    return(arrow::dataset_factory_options(
+  if ("dataset_factory_options" %in% getNamespaceExports("arrow")) {
+    factory_options <- getExportedValue("arrow", "dataset_factory_options")
+    return(factory_options(
       selector_ignore_prefixes = ignore_prefixes,
       exclude_invalid_files = exclude_invalid_files
     ))

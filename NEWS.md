@@ -1,3 +1,10 @@
+# dataplane 1.0.3
+
+* Prepared the package for CRAN submission by removing an unavailable
+  dependency, correcting documentation and namespace issues, and making
+  process, memory, and dataset helpers portable and safely scoped.
+* Added CRAN release metadata and a reproducible release-check workflow.
+
 # dataplane 1.0.2
 
 * Added `dp_delta_setup()` to create, validate, and remember an isolated

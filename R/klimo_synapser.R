@@ -15,17 +15,6 @@
 # Utilities (internal)
 # ==============================================================================
 
-#' Null/empty coalesce
-#'
-#' Internal helper: return `b` when `a` is `NULL` or length 0; otherwise return `a`.
-#' This is intentionally different from `.syn_coalesce()` which also treats some scalar
-#' NA/"" as missing.
-#'
-#' @param a,b Objects to coalesce.
-#' @return `a` if present, otherwise `b`.
-#' @keywords internal
-`%||%` <- function(a, b) if (is.null(a) || length(a) == 0L) b else a
-
 #' Coalesce with scalar NA/empty-string handling
 #'
 #' Internal helper: return `b` when `a` is `NULL`/len0. If `a` is scalar, also treat
@@ -664,8 +653,8 @@ syn_ensure_folder_path <- function(parent_id, path,
   }
   
   list(
-    url_by_part = setNames(urls[keep], pns[keep]),
-    hdr_by_part = setNames(hdrs[keep], pns[keep])
+    url_by_part = stats::setNames(urls[keep], pns[keep]),
+    hdr_by_part = stats::setNames(hdrs[keep], pns[keep])
   )
 }
 

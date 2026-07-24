@@ -26,6 +26,17 @@ test_that("delta check verifies explicit-encoding support", {
   expect_match(check$pyarrow_version, "^[0-9]+[.]")
 })
 
+test_that("managed environment removal refuses arbitrary directories", {
+  path <- tempfile("not-a-venv-")
+  dir.create(path)
+  on.exit(unlink(path, recursive = TRUE, force = TRUE), add = TRUE)
+  expect_error(
+    dataplane::dp_delta_remove(path, forget = FALSE, quiet = TRUE),
+    "pyvenv.cfg"
+  )
+  expect_true(dir.exists(path))
+})
+
 test_that("delta writer preserves mixed Arrow values and nulls", {
   delta_backend_or_skip()
   path <- tempfile(fileext = ".parquet")

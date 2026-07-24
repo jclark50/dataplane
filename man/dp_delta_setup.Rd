@@ -7,7 +7,7 @@
 dp_delta_setup(
   python = NULL,
   env_dir = NULL,
-  pyarrow_version = NULL,
+  pyarrow_version = "24.0.0",
   upgrade = FALSE,
   recreate = FALSE,
   validate = TRUE,
@@ -22,8 +22,9 @@ considered in that order.}
 \item{env_dir}{Optional virtual-environment directory. The default is a
 Dataplane directory returned by [tools::R_user_dir()].}
 
-\item{pyarrow_version}{Optional exact PyArrow version, such as `"24.0.0"`.
-The default installs a compatible release (`pyarrow>=14.0.0`).}
+\item{pyarrow_version}{Exact PyArrow version. The fixed default is
+`"24.0.0"`. Supply `NULL` only when an explicitly unpinned compatible
+release is desired.}
 
 \item{upgrade}{If `TRUE`, ask pip to upgrade an existing compatible PyArrow.}
 

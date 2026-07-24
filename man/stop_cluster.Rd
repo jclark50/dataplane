@@ -2,25 +2,25 @@
 % Please edit documentation in R/stop_cluster.R
 \name{stop_cluster}
 \alias{stop_cluster}
-\title{Forcefully Stop Worker Processes}
+\title{Stop Explicitly Identified Worker Processes}
 \usage{
-stop_cluster(workerpids = NULL)
+stop_cluster(workerpids, signal = 15L)
 }
 \arguments{
-\item{workerpids}{Integer vector of worker PIDs. If `NULL`, kills all `Rscript.exe` (Windows)
-or `R` (Linux) processes. Use with caution.}
+\item{workerpids}{Positive integer vector of worker process identifiers.}
+
+\item{signal}{Integer signal passed to [tools::pskill()].}
 }
 \value{
-NULL invisibly.
+`NULL`, invisibly.
 }
 \description{
-`stop_cluster()` attempts to kill the processes by PID.
-On Windows, uses `taskkill /F /PID`.
-On Linux, uses `kill -9`.
+Sends a termination signal only to the supplied process identifiers. The
+function deliberately refuses a missing or empty PID vector and never kills
+processes by name.
 }
 \examples{
 \dontrun{
-stop_cluster(env_info$worker_pids)
+stop_cluster(c(12345L, 12346L))
 }
-
 }

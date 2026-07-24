@@ -2,67 +2,46 @@
 % Please edit documentation in R/env_start.R
 \name{env_start}
 \alias{env_start}
-\title{Start a Parallel Cluster with a Cross-Platform Watchdog (Temp Stop File)}
+\title{Start a Small Cross-Platform Parallel Cluster}
 \usage{
 env_start(
   num_cores = 2,
   threshold = 0.99,
   consecutive_seconds = 15,
   stop_file = tempfile("stop_watchdog_"),
-  windows_path = "C:\\\\Users\\\\Jordan\\\\Desktop",
-  linux_path = "~/scripts"
+  windows_path = NULL,
+  linux_path = NULL,
+  quiet = FALSE
 )
 }
 \arguments{
-\item{num_cores}{Integer. Number of cores to use for the parallel cluster. Defaults to 2.}
+\item{num_cores}{Positive integer no greater than two.}
 
-\item{threshold}{Numeric. The memory usage threshold (0 to 1) at which the watchdog triggers. Default 0.99.}
+\item{threshold}{Retained for backward compatibility; no watchdog is started.}
 
-\item{consecutive_seconds}{Integer. How many consecutive seconds memory must be above threshold before killing. Default 15.}
+\item{consecutive_seconds}{Retained for backward compatibility.}
 
-\item{stop_file}{Character. The full path and filename of the stop file to be used by the watchdog.
-If not specified, a random unique temp file name is created.}
+\item{stop_file}{Optional temporary stop-file path retained for compatibility.}
 
-\item{windows_path}{Character. The directory for `watchdog2.ps1` on Windows. Defaults to `"C:\\Users\\Jordan\\Desktop"`.}
+\item{windows_path}{Deprecated and ignored.}
 
-\item{linux_path}{Character. The directory for `watchdog2.sh` on Linux. Defaults to `"~/scripts"`.}
+\item{linux_path}{Deprecated and ignored.}
+
+\item{quiet}{If `TRUE`, suppress informational messages.}
 }
 \value{
-A list: `list(cluster = cl, stop_file = stop_file, worker_pids = pids)`.
+A list containing `cluster`, `stop_file`, `worker_pids`, and
+  `watchdog_started`.
 }
 \description{
-`env_start()` sets up a parallel cluster and starts a watchdog script
-that monitors memory usage on Windows or Linux. It writes out default watchdog scripts if needed.
-
-If `stop_file` is not provided, a unique temporary filename (with random characters) is generated.
-}
-\details{
-- On Windows, uses a PowerShell script (`watchdog2.ps1`).
-- On Linux, uses a Bash script (`watchdog2.sh`).
-- If the watchdog script doesn't exist, it is written out.
-- If `stop_file` is `NULL`, a unique temp file is created automatically.
-
-The watchdog monitors memory usage. If it stays above `threshold` for `consecutive_seconds`,
-it kills the provided worker PIDs. To stop the watchdog gracefully, create the stop file
-specified by `stop_file`.
+Creates a base R PSOCK cluster and, when available, registers it with
+`doParallel`. Earlier development versions launched external watchdog
+scripts; the CRAN-safe implementation does not create or start external
+scripts.
 }
 \examples{
 \dontrun{
-# Start environment with a random unique stop file name:
-env_info <- env_start()
-
-# ... do some computations ...
-
-# Gracefully stop watchdog:
-# ?jj::env_close
-env_close(env_info)
-file.create(env_info$stop_file)
-stop_cluster(env_info$worker_pids)
-# file.create(env_info$stop_file)
-# Kill processes if desired:
-stop_cluster(env_info$worker_pids)
-# Then stop cluster (probably DO NOT need to also do this after calling stop_cluster():
-parallel::stopCluster(env_info$cluster)
+env_info <- env_start(num_cores = 2)
+on.exit(env_close(env_info), add = TRUE)
 }
-
 }

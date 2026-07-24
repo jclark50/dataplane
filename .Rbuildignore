@@ -3,5 +3,9 @@
 ^LICENSE\.md$
 ^dev$
 ^doc$
+^docs$
+^examples$
 ^Meta$
 ^\.git$
+^cran-comments\.md$
+^CRAN-SUBMISSION$

@@ -153,7 +153,7 @@ s3_list_objects <- function(bucket,
       all_rows[[length(all_rows) + 1L]] <- page_df
       total_fetched <- total_fetched + n_new
       # Update marker: S3 v1 pagination can use the last returned Key
-      next_marker <- tail(page_df$Key, 1)
+      next_marker <- utils::tail(page_df$Key, 1)
     }
     
     # Check truncation flag; aws.s3 stores it as an attribute on the response

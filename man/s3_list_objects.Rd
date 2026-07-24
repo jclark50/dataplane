@@ -101,7 +101,13 @@ keys, loop with `marker`/continuation tokens.
 \examples{
 \dontrun{
 df <- s3_list_objects(bucket = "my-bucket", prefix = "data/2026-01-01/")
-newest <- s3_list_objects("my-bucket", prefix = "data/", order_by_last_modified = TRUE, return_tail = TRUE, tail_n = 5)
+newest <- s3_list_objects(
+  "my-bucket",
+  prefix = "data/",
+  order_by_last_modified = TRUE,
+  return_tail = TRUE,
+  tail_n = 5
+)
 }
 
 \dontrun{

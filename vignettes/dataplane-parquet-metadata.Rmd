@@ -18,7 +18,7 @@ knitr::opts_chunk$set(
 
 ## Overview
 
-This vignette introduces Dataplane’s Parquet/Dataset utilities in a gradual way:
+This vignette introduces Dataplane's Parquet/Dataset utilities in a gradual way:
 
 1) **Start with the simplest useful idea**: a *spec* that documents columns and units  
 2) Add **optional unit attributes** (helpful in R workflows, no file I/O required)  
@@ -46,7 +46,7 @@ library(dataplane)
 
 ## A small example dataset
 
-For the vignette, we’ll use a simple time series with a few typical weather-ish fields.
+For the vignette, we'll use a simple time series with a few typical weather fields.
 
 ```{r example-data}
 dt <- data.table(
@@ -64,9 +64,9 @@ dt
 
 ---
 
-## 1) Specs: a lightweight “data contract”
+## 1) Specs: a lightweight "data contract"
 
-A Dataplane **spec** is a structured description of your table’s columns.
+A Dataplane **spec** is a structured description of your table's columns.
 
 At minimum, it can capture:
 
@@ -75,12 +75,12 @@ At minimum, it can capture:
 - `declared_units`: an optional override (when you want to force a specific unit label)
 
 Later (not yet), the spec can also include **scaling intent** (`writer_scale`), but for now,
-ignore scaling—this section is just about documentation.
+ignore scaling; this section is just about documentation.
 
 ### 1.1 Create a default spec
 
 `dp_spec_default()` inspects column names and tries to match them to a small internal
-concept catalog (synonyms). If it can’t confidently match a column, it leaves fields as `NA`.
+concept catalog (synonyms). If it can't confidently match a column, it leaves fields as `NA`.
 
 ```{r spec-default}
 sp <- dp_spec_default(dt, declared_system = "metric", include_unmatched = TRUE)
@@ -89,7 +89,7 @@ sp
 
 ### 1.2 Look at a minimal view of the spec
 
-The full spec table has several columns; early on it’s easier to just look at the most
+The full spec table has several columns; early on it's easier to just look at the most
 important ones.
 
 ```{r spec-fields-minimal}
@@ -105,8 +105,8 @@ sp$fields[, .(column, concept, metric_units, imperial_units, declared_units)]
 This is useful when:
 
 - your column name is ambiguous and the catalog guessed wrong
-- you want to override units for a column that wasn’t matched
-- you want to set a `declared_units` override (strongest “label”)
+- you want to override units for a column that wasn't matched
+- you want to set a `declared_units` override (strongest "label")
 
 ### 2.1 Override units for specific columns
 
@@ -189,17 +189,8 @@ Core behavior:
 
 ```{r paths}
 out_dir <- file.path(tempdir(), "dataplane_vignette")
-
-# On some Windows setups, tempdir() subfolders can be flaky; fall back to a safe user-writable location if needed.
-ok <- tryCatch({
-  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-  file.access(out_dir, 2) == 0
-}, error = function(e) FALSE)
-
-if (!isTRUE(ok)) {
-  out_dir <- file.path(path.expand("~"), "dataplane_vignette")
-  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-}
+dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+stopifnot(file.access(out_dir, 2) == 0)
 
 pq_path <- file.path(out_dir, "example.parquet")
 pq_path
@@ -295,7 +286,7 @@ sp_sc <- sp
 sp_sc <- dp_set_scale(sp_sc, columns = c("temp", "wbgt"), writer_scale = 100)
 sp_sc <- dp_set_scale(sp_sc, columns = c("lat", "lon"),  writer_scale = 10000)
 
-# Don’t print the whole spec table; just show the columns that now have scaling intent:
+# Do not print the whole spec table; show columns with scaling intent:
 sp_sc$fields[is.finite(writer_scale) & writer_scale != 0, .(column, writer_scale)]
 ```
 
@@ -382,7 +373,7 @@ list.files(ds_dir, recursive = TRUE)
 ### 7.2 Open the dataset (ignore sidecar as data)
 
 The sidecar is a Parquet file; Arrow will treat it like a data file unless told to ignore it.
-Dataplane’s recommended pattern is to ignore prefixes like `dp_` so `dp_meta.parquet` is excluded.
+Dataplane's recommended pattern is to ignore prefixes like `dp_` so `dp_meta.parquet` is excluded.
 
 ```{r open-dataset}
 opened <- dp_open(
@@ -400,7 +391,7 @@ opened$meta$spec_dt[, c('column', 'declared_units')][]
 ```{r dataset-query}
 ds <- opened$ds
 
-# Don’t print everything: just confirm a few columns exist
+# Do not print everything; confirm that a few columns exist
 head(names(ds), 10)
 
 res <- ds %>%

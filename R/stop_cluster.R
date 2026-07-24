@@ -1,63 +1,37 @@
-
-#' @title Forcefully Stop Worker Processes
+#' Stop Explicitly Identified Worker Processes
 #'
-#' @description
-#' `stop_cluster()` attempts to kill the processes by PID.
-#' On Windows, uses `taskkill /F /PID`.
-#' On Linux, uses `kill -9`.
+#' Sends a termination signal only to the supplied process identifiers. The
+#' function deliberately refuses a missing or empty PID vector and never kills
+#' processes by name.
 #'
-#' @param workerpids Integer vector of worker PIDs. If `NULL`, kills all `Rscript.exe` (Windows)
-#'   or `R` (Linux) processes. Use with caution.
+#' @param workerpids Positive integer vector of worker process identifiers.
+#' @param signal Integer signal passed to [tools::pskill()].
 #'
-#' @return NULL invisibly.
+#' @return `NULL`, invisibly.
+#' @export
 #'
 #' @examples
 #' \dontrun{
-#' stop_cluster(env_info$worker_pids)
+#' stop_cluster(c(12345L, 12346L))
 #' }
-#'
-#' @export
-# stop_cluster <- function(workerpids = NULL) {
-  # if (is.null(workerpids)) {
-    # # Kill all Rscript.exe processes
-    # system("taskkill /F /IM Rscript.exe")
-  # } else {
-    # workerpids <- paste(workerpids, collapse = "|")  # create pattern like "23964|10116"
-    # procs <- system("tasklist", intern = TRUE)
-    # pwsh_line <- grep(workerpids, procs, value = TRUE)
-    # if (length(pwsh_line) > 0) {
-      # # Extract PID from lines containing these worker PIDs
-      # pid <- sub(".*Rscript.exe\\s+([0-9]+).*", "\\1", pwsh_line)
-      # # Now kill each PID found
-      # for (pp in pid) {
-        # system(paste("taskkill /F /PID", pp))
-      # }
-    # }
-  # }
-  # invisible(NULL)
-# }
-stop_cluster <- function(workerpids = NULL) {
-  os <- Sys.info()[["sysname"]]
-  if (is.null(workerpids)) {
-    if (os == "Windows") {
-      # Kill all Rscript.exe processes
-      system("taskkill /F /IM Rscript.exe")
-    } else {
-      # Linux: kill all R processes (use with caution)
-      system("pkill -9 R")
-    }
-  } else {
-    for (pp in workerpids) {
-      if (os == "Windows") {
-        # Check if process is running and kill
-        system(sprintf("taskkill /F /PID %d", pp))
-      } else {
-        # Linux
-        if (system2("ps", c("-p", as.character(pp)), stdout = FALSE, stderr = FALSE) == 0) {
-          system(sprintf("kill -9 %d", pp))
-        }
-      }
-    }
+stop_cluster <- function(workerpids, signal = 15L) {
+  if (missing(workerpids) || is.null(workerpids) || !length(workerpids)) {
+    stop("`workerpids` must explicitly identify at least one process.", call. = FALSE)
+  }
+  workerpids <- suppressWarnings(as.integer(workerpids))
+  if (anyNA(workerpids) || any(workerpids <= 0L)) {
+    stop("`workerpids` must contain only positive integers.", call. = FALSE)
+  }
+  if (Sys.getpid() %in% workerpids) {
+    stop("Refusing to terminate the current R process.", call. = FALSE)
+  }
+  signal <- as.integer(signal)
+  if (length(signal) != 1L || is.na(signal)) {
+    stop("`signal` must be one integer.", call. = FALSE)
+  }
+
+  for (pid in unique(workerpids)) {
+    try(tools::pskill(pid, signal = signal), silent = TRUE)
   }
   invisible(NULL)
 }

@@ -94,8 +94,9 @@
 #'   considered in that order.
 #' @param env_dir Optional virtual-environment directory. The default is a
 #'   Dataplane directory returned by [tools::R_user_dir()].
-#' @param pyarrow_version Optional exact PyArrow version, such as `"24.0.0"`.
-#'   The default installs a compatible release (`pyarrow>=14.0.0`).
+#' @param pyarrow_version Exact PyArrow version. The fixed default is
+#'   `"24.0.0"`. Supply `NULL` only when an explicitly unpinned compatible
+#'   release is desired.
 #' @param upgrade If `TRUE`, ask pip to upgrade an existing compatible PyArrow.
 #' @param recreate If `TRUE`, remove and recreate an existing managed virtual
 #'   environment. Removal is permitted only when `pyvenv.cfg` is present.
@@ -108,7 +109,7 @@
 dp_delta_setup <- function(
     python = NULL,
     env_dir = NULL,
-    pyarrow_version = NULL,
+    pyarrow_version = "24.0.0",
     upgrade = FALSE,
     recreate = FALSE,
     validate = TRUE,
@@ -256,6 +257,70 @@ dp_delta_setup <- function(
     config_file = config_file,
     pyarrow_version = check$pyarrow_version,
     validated = isTRUE(validate)
+  ))
+}
+
+
+#' Remove a Dataplane-Managed Python Environment
+#'
+#' Removes a virtual environment created by [dp_delta_setup()] and forgets its
+#' saved interpreter path. For safety, removal is refused unless `pyvenv.cfg`
+#' exists in the target directory.
+#'
+#' @param env_dir Virtual-environment directory. The default is Dataplane's
+#'   managed cache directory.
+#' @param forget If `TRUE`, remove the saved interpreter configuration.
+#' @param quiet If `TRUE`, suppress informational messages.
+#'
+#' @return Invisibly returns a list describing what was removed.
+#' @export
+dp_delta_remove <- function(env_dir = NULL, forget = TRUE, quiet = FALSE) {
+  if (!is.logical(forget) || length(forget) != 1L || is.na(forget)) {
+    .dp_stop("dp_delta_remove(): `forget` must be TRUE or FALSE.")
+  }
+  if (!is.logical(quiet) || length(quiet) != 1L || is.na(quiet)) {
+    .dp_stop("dp_delta_remove(): `quiet` must be TRUE or FALSE.")
+  }
+  env_dir <- env_dir %||% .dp_delta_managed_dir()
+  if (!.dp_is_scalar_chr(env_dir)) {
+    .dp_stop("dp_delta_remove(): `env_dir` must be one non-empty path.")
+  }
+  env_dir <- normalizePath(path.expand(env_dir), winslash = "/", mustWork = FALSE)
+  removed_environment <- FALSE
+
+  if (dir.exists(env_dir)) {
+    marker <- file.path(env_dir, "pyvenv.cfg")
+    if (!file.exists(marker)) {
+      .dp_stop(
+        "dp_delta_remove(): refusing to remove `%s`; `pyvenv.cfg` is absent.",
+        env_dir
+      )
+    }
+    unlink(env_dir, recursive = TRUE, force = TRUE)
+    if (dir.exists(env_dir)) {
+      .dp_stop("dp_delta_remove(): could not remove `%s`.", env_dir)
+    }
+    removed_environment <- TRUE
+  }
+
+  config_file <- .dp_delta_config_file()
+  removed_config <- FALSE
+  if (isTRUE(forget) && file.exists(config_file)) {
+    unlink(config_file, force = TRUE)
+    if (file.exists(config_file)) {
+      .dp_stop("dp_delta_remove(): could not remove `%s`.", config_file)
+    }
+    removed_config <- TRUE
+  }
+
+  if (!isTRUE(quiet)) {
+    message("Dataplane managed delta environment removed.")
+  }
+  invisible(list(
+    env_dir = env_dir,
+    config_file = config_file,
+    removed_environment = removed_environment,
+    removed_config = removed_config
   ))
 }
 

@@ -1,20 +1,26 @@
 Package: dataplane
-Title: Data Architecture and Processing Helpers
-Version: 1.0.2
+Title: Data Specification, Parquet Metadata, and Transfer Utilities
+Version: 1.0.3
 Authors@R: 
-    person("Jordan", "Clark", email = "jordanjclark50@gmail.com", role = c("aut", "cre"))
-Description: Tools for structuring, validating, and transforming datasets with a focus on repeatable pipelines and clear metadata.
+    person("Jordan", "Clark", email = "jordanjclark50@gmail.com",
+           role = c("aut", "cre", "cph"))
+Description: Defines tabular data specifications, validates and attaches units,
+    encodes numeric fields, and reads or writes metadata in 'Parquet' files
+    using 'Apache Arrow'. Additional utilities support 'GeoParquet' metadata,
+    Amazon S3 and Synapse transfers, moving averages, and optional lossless
+    'Parquet' encoding through an isolated 'PyArrow' environment.
 License: MIT + file LICENSE
 Encoding: UTF-8
+Language: en-US
+Depends:
+    R (>= 4.1.0)
 RoxygenNote: 7.3.3
 URL: https://jclark50.github.io/dataplane/, https://github.com/jclark50/dataplane
 BugReports: https://github.com/jclark50/dataplane/issues
 Imports: 
-    weathertools,
     arrow,
     data.table,
     digest,
-    dplyr,
     httr2,
     jsonlite,
     aws.s3,
@@ -25,9 +31,11 @@ Suggests:
     knitr,
     rmarkdown,
     crayon,
+    dplyr,
     sf,
     doParallel,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
-SystemRequirements: Python 3 with venv and pip (optional, for managed delta-encoded Parquet setup)
+SystemRequirements: Python 3 with venv and pip (optional, for managed
+    delta-encoded Parquet setup)
 VignetteBuilder: knitr
