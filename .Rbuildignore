@@ -7,5 +7,6 @@
 ^examples$
 ^Meta$
 ^\.git$
+^\.github$
 ^cran-comments\.md$
 ^CRAN-SUBMISSION$
